@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>清掃員 給与明細 発行システム</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#f5f6f8; --panel:#ffffff; --border:#dde1e6; --text:#1f2430; --muted:#6b7280;
+    --accent:#2f3b52; --accent2:#3f5a8a; --danger:#c0392b; --ok:#1e824c;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic",
+      "Noto Sans JP",sans-serif; background:var(--bg); color:var(--text); font-size:14px;
+  }
+  .wrap{max-width:960px; margin:0 auto; padding:24px 16px 80px;}
+  h1{font-size:20px; margin:0 0 4px;}
+  .sub{color:var(--muted); font-size:13px; margin-bottom:20px;}
+  .panel{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:18px 20px; margin-bottom:16px;}
+  .panel h2{font-size:14px; margin:0 0 12px; color:var(--accent);}
+  .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:10px 16px;}
+  label{display:block; font-size:12px; color:var(--muted); margin-bottom:3px;}
+  input[type=text], input[type=number], input[type=date], select, textarea{
+    width:100%; padding:7px 8px; border:1px solid var(--border); border-radius:6px;
+    font-size:13px; background:#fff; color:var(--text); font-family:inherit;
+  }
+  textarea{min-height:70px; resize:vertical;}
+  .row-actions, .btnbar{display:flex; gap:8px; flex-wrap:wrap; margin-top:14px;}
+  button{
+    cursor:pointer; border:none; border-radius:7px; padding:9px 16px; font-size:13px;
+    font-weight:600; font-family:inherit;
+  }
+  .btn-primary{background:var(--accent2); color:#fff;}
+  .btn-primary:hover{background:#334a73;}
+  .btn-secondary{background:#eef0f3; color:var(--text); border:1px solid var(--border);}
+  .btn-secondary:hover{background:#e3e6ea;}
+  .btn-danger{background:#fdecea; color:var(--danger); border:1px solid #f3c9c4;}
+  .btn-danger:hover{background:#fbd9d5;}
+  .status-msg{font-size:12px; margin-top:8px;}
+  .status-msg.err{color:var(--danger);}
+  .status-msg.ok{color:var(--ok);}
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th, td{border:1px solid var(--border); padding:6px 7px; text-align:left;}
+  th{background:var(--accent); color:#fff; font-weight:600; font-size:12px;}
+  tbody tr:nth-child(even){background:#f8f9fb;}
+  td input[type=text], td input[type=number], td input[type=date], td select{padding:4px 5px; font-size:12px;}
+  .num{text-align:right; font-variant-numeric:tabular-nums;}
+  .center{text-align:center;}
+  .small-btn{padding:4px 8px; font-size:11px;}
+  .summary{display:flex; gap:24px; flex-wrap:wrap; margin-top:14px; align-items:baseline;}
+  .summary .item{font-size:13px; color:var(--muted);}
+  .summary .total{font-size:20px; font-weight:700; color:var(--accent);}
+  .hint{font-size:11px; color:var(--muted); margin-top:6px; line-height:1.5;}
+  .badge{display:inline-block; padding:1px 7px; border-radius:10px; font-size:11px; font-weight:600;}
+  .badge.guest{background:#e6f0fb; color:#2b5b9e;}
+  .badge.space{background:#fdf1e2; color:#a9660a;}
+
+  /* ---- Printable payslip ---- */
+  #printArea{display:none;}
+  .slip-title{text-align:center; font-size:22px; font-weight:700; margin:0 0 18px;}
+  .slip-meta{font-size:13px; margin-bottom:14px;}
+  .slip-info-table td{padding:7px 10px;}
+  .slip-info-table td:first-child{background:#f3f4f6; width:130px; font-weight:600;}
+  .slip-detail-table th{font-size:12px;}
+  .slip-summary{margin-top:16px; width:340px; margin-left:auto;}
+  .slip-summary td{padding:6px 10px;}
+  .slip-summary tr:last-child td{font-size:16px; font-weight:700; border-top:2px solid #222;}
+  .slip-footnote{font-size:11px; color:#666; margin-top:18px;}
+
+  @media print{
+    body *{visibility:hidden;}
+    #printArea, #printArea *{visibility:visible;}
+    #printArea{display:block; position:absolute; left:0; top:0; width:100%; padding:14mm;}
+    @page{ size:A4; margin:12mm; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>清掃員 給与明細 発行システム</h1>
+  <div class="sub">スプレッドシートの「清掃管理」シートから実績を自動取得し、給与明細（PDF / Excel）を発行します。</div>
+
+  <div class="panel">
+    <h2>① データ取得元</h2>
+    <div class="grid">
+      <div style="grid-column:1/-1;">
+        <label>スプレッドシートURL または ID</label>
+        <input type="text" id="sheetUrl" value="https://docs.google.com/spreadsheets/d/1Lt3A5_dKuM6dsO9vhj0fvnR74uftugCMr9tusDBL6GY/edit">
+      </div>
+      <div>
+        <label>取得するシート（タブ）名</label>
+        <input type="text" id="sheetName" value="清掃管理">
+      </div>
+      <div>
+        <label>施設名フィルタ（部分一致）</label>
+        <input type="text" id="facilityFilter" value="鶴橋">
+      </div>
+      <div>
+        <label>スタッフ名フィルタ（部分一致）</label>
+        <input type="text" id="staffFilter" value="角谷">
+      </div>
+      <div>
+        <label>対象にするステータス</label>
+        <select id="statusFilter">
+          <option value="confirmed" selected>confirmed のみ</option>
+          <option value="all">すべて（cancelled等も含む）</option>
+        </select>
+      </div>
+    </div>
+    <div class="btnbar">
+      <button class="btn-primary" id="fetchBtn">スプレッドシートから取得</button>
+    </div>
+    <div class="status-msg" id="fetchStatus"></div>
+    <div class="hint">
+      ※ シートの共有設定が「リンクを知っている全員が閲覧可」になっている必要があります。取得できない場合は、下の「＋ 行を手動追加」でシフトを直接入力してください（例：シート上でスタッフ名が未記入の実績など）。
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>② 明細情報</h2>
+    <div class="grid">
+      <div>
+        <label>支払者（事業者名）</label>
+        <input type="text" id="payerName" value="株式会社グローブ">
+      </div>
+      <div>
+        <label>清掃員 氏名</label>
+        <input type="text" id="staffDisplayName" value="角谷咲紀江">
+      </div>
+      <div>
+        <label>担当施設（表示名）</label>
+        <input type="text" id="facilityDisplayName" value="HOTEL ONN- 御-鶴橋">
+      </div>
+      <div>
+        <label>発行日</label>
+        <input type="date" id="issueDate">
+      </div>
+      <div>
+        <label>対象期間 開始日</label>
+        <input type="date" id="periodStart">
+      </div>
+      <div>
+        <label>対象期間 終了日</label>
+        <input type="date" id="periodEnd">
+      </div>
+      <div>
+        <label>単価：宿泊客（円）</label>
+        <input type="number" id="rateGuest" value="6000">
+      </div>
+      <div>
+        <label>単価：レンタルスペース客（円）</label>
+        <input type="number" id="rateSpace" value="3000">
+      </div>
+    </div>
+    <div class="btnbar">
+      <button class="btn-secondary" id="applyPeriodBtn">この条件で明細行を再作成</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>③ 清掃実績明細（編集可）</h2>
+    <div style="overflow-x:auto;">
+      <table id="rowsTable">
+        <thead>
+          <tr>
+            <th class="center">含める</th>
+            <th>日付</th>
+            <th>区分</th>
+            <th>単価</th>
+            <th>支払額</th>
+            <th>備考</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="rowsBody"></tbody>
+      </table>
+    </div>
+    <div class="btnbar">
+      <button class="btn-secondary small-btn" id="addRowBtn">＋ 行を手動追加</button>
+    </div>
+    <div class="summary">
+      <div class="item">宿泊客：<b id="guestCount">0</b> 回</div>
+      <div class="item">レンタルスペース客：<b id="spaceCount">0</b> 回</div>
+      <div class="item total">合計支払額：<span id="totalAmount">¥0</span></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>④ 発行</h2>
+    <div class="btnbar">
+      <button class="btn-primary" id="pdfBtn">PDFをダウンロード（印刷して保存）</button>
+      <button class="btn-primary" id="xlsxBtn">Excel（.xlsx）をダウンロード</button>
+    </div>
+    <div class="hint">PDFは印刷ダイアログが開きます。「送信先」を「PDFに保存」にして保存してください。</div>
+  </div>
+</div>
+
+<!-- ============ 印刷用（PDF出力用）レイアウト ============ -->
+<div id="printArea">
+  <div class="slip-title">清掃業務 給与明細</div>
+  <div class="slip-meta" id="printMeta"></div>
+  <table class="slip-info-table" style="width:100%; margin-bottom:16px;">
+    <tr><td>支払者</td><td id="printPayer"></td></tr>
+    <tr><td>支払先（清掃員）</td><td id="printStaff"></td></tr>
+    <tr><td>担当施設</td><td id="printFacility"></td></tr>
+  </table>
+  <table class="slip-detail-table" style="width:100%;">
+    <thead>
+      <tr><th>日付</th><th>区分</th><th>単価</th><th>支払額</th><th>備考</th></tr>
+    </thead>
+    <tbody id="printBody"></tbody>
+  </table>
+  <table class="slip-summary">
+    <tr><td>宿泊客 清掃回数</td><td class="num" id="printGuestCount"></td></tr>
+    <tr><td>レンタルスペース客 清掃回数</td><td class="num" id="printSpaceCount"></td></tr>
+    <tr><td>合計支払額</td><td class="num" id="printTotal"></td></tr>
+  </table>
+  <div class="slip-footnote">
+    ※ 単価は宿泊客・レンタルスペース客の基本単価に基づき、例外がある場合は備考欄に理由を記載しています。
+  </div>
+</div>
+
+<script>
+let rawRows = [];     // 取得した生データ（フィルタ前）
+let shiftRows = [];   // 明細に載せる行（編集可能）
+let rowSeq = 0;
+
+const $ = (id) => document.getElementById(id);
+
+function todayStr(d){
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+function initDefaultDates(){
+  const now = new Date();
+  $('issueDate').value = todayStr(now);
+  const first = new Date(now.getFullYear(), now.getMonth(), 1);
+  const last = new Date(now.getFullYear(), now.getMonth()+1, 0);
+  $('periodStart').value = todayStr(first);
+  $('periodEnd').value = todayStr(last);
+}
+initDefaultDates();
+
+function extractSheetId(input){
+  const m = input.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  return m ? m[1] : input.trim();
+}
+
+// 簡易CSVパーサ（ダブルクォート・カンマ・改行に対応）
+function parseCSV(text){
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for(let i=0;i<text.length;i++){
+    const c = text[i];
+    if(inQuotes){
+      if(c === '"'){
+        if(text[i+1] === '"'){ field += '"'; i++; }
+        else inQuotes = false;
+      } else field += c;
+    } else {
+      if(c === '"') inQuotes = true;
+      else if(c === ','){ row.push(field); field=''; }
+      else if(c === '\n'){ row.push(field); rows.push(row); row=[]; field=''; }
+      else if(c === '\r'){ /* skip */ }
+      else field += c;
+    }
+  }
+  if(field.length || row.length){ row.push(field); rows.push(row); }
+  return rows;
+}
+
+function yen(n){
+  const v = Math.round(n);
+  return '¥' + v.toLocaleString('ja-JP');
+}
+
+// fetch()だとGoogle側がCORSヘッダーを返さずFailed to fetchになることがあるため、
+// <script>タグでの読み込み（JSONP）方式でCORS制限を回避する（fetchSheet内で実施）。
+function gvizCellToText(cell){
+  if(!cell || cell.v === null || cell.v === undefined) return '';
+  let v = cell.v;
+  if(typeof v === 'string' && v.startsWith('Date(')){
+    const m = v.match(/Date\((\d+),(\d+),(\d+)/);
+    if(m){
+      const y = +m[1], mo = +m[2] + 1, d = +m[3];
+      return `${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    }
+  }
+  return String(v).trim();
+}
+
+async function fetchSheet(){
+  const statusEl = $('fetchStatus');
+  statusEl.textContent = '取得中...';
+  statusEl.className = 'status-msg';
+  try{
+    const id = extractSheetId($('sheetUrl').value);
+    const sheetName = $('sheetName').value.trim();
+    const cbName = 'gvizCb_' + Date.now() + '_' + Math.floor(Math.random()*100000);
+    // tqxはセミコロン区切り・コロン区切りの key:value 形式（responseHandler=name ではなく responseHandler:name）
+    const url = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:json;responseHandler:${cbName}&sheet=${encodeURIComponent(sheetName)}`;
+
+    const data = await new Promise((resolve, reject) => {
+      let settled = false;
+      const script = document.createElement('script');
+      const onGlobalError = (ev) => {
+        // レスポンスがJSとして不正/想定外だった場合（例:コールバック名不一致）に発生する実行時エラーを捕捉
+        if(settled) return; settled = true;
+        window.removeEventListener('error', onGlobalError);
+        clearTimeout(timer);
+        try{ delete window[cbName]; }catch(e){}
+        script.remove();
+        reject(new Error('取得したデータの読み込み中にエラーが発生しました：' + (ev.message || '不明なエラー')));
+      };
+      const timer = setTimeout(() => {
+        if(settled) return; settled = true;
+        window.removeEventListener('error', onGlobalError);
+        try{ delete window[cbName]; }catch(e){}
+        script.remove();
+        reject(new Error('タイムアウトしました（15秒応答がありませんでした。ネットワーク接続、またはシートの共有設定をご確認ください）'));
+      }, 15000);
+      window[cbName] = (json) => {
+        if(settled) return; settled = true;
+        window.removeEventListener('error', onGlobalError);
+        clearTimeout(timer);
+        try{ delete window[cbName]; }catch(e){}
+        script.remove();
+        resolve(json);
+      };
+      script.onerror = () => {
+        if(settled) return; settled = true;
+        window.removeEventListener('error', onGlobalError);
+        clearTimeout(timer);
+        try{ delete window[cbName]; }catch(e){}
+        script.remove();
+        reject(new Error('読み込みに失敗しました（URL・シート名、またはネットワーク接続をご確認ください）'));
+      };
+      window.addEventListener('error', onGlobalError);
+      script.src = url;
+      document.body.appendChild(script);
+    });
+
+    if(!data || !data.table){
+      throw new Error((data && data.errors && data.errors[0] && data.errors[0].detailed_message) || 'データ形式が想定と異なります。シート名をご確認ください。');
+    }
+    const cols = data.table.cols.map(c => (c.label || '').trim());
+    const idx = {
+      date: cols.indexOf('日付'),
+      facility: cols.indexOf('施設名'),
+      staff: cols.indexOf('スタッフ名'),
+      status: cols.indexOf('ステータス'),
+      memo: cols.indexOf('メモ'),
+    };
+    if(idx.date < 0 || idx.facility < 0){
+      throw new Error('想定した列（日付・施設名など）が見つかりません。シート名や列構成をご確認ください。');
+    }
+    rawRows = (data.table.rows || []).map(r => {
+      const c = r.c || [];
+      return {
+        date: gvizCellToText(c[idx.date]),
+        facility: gvizCellToText(c[idx.facility]),
+        staff: gvizCellToText(c[idx.staff]),
+        status: gvizCellToText(c[idx.status]),
+        memo: gvizCellToText(c[idx.memo]),
+      };
+    });
+    statusEl.textContent = `取得成功：${rawRows.length} 件の実績データを読み込みました。`;
+    statusEl.className = 'status-msg ok';
+    buildShiftRowsFromRaw();
+  }catch(err){
+    statusEl.textContent = '取得に失敗しました：' + err.message + '（下部の「＋行を手動追加」で直接入力することもできます）';
+    statusEl.className = 'status-msg err';
+  }
+}
+
+function classifyType(memo){
+  if(/レンスペ|レンタルスペース|スペース/.test(memo)) return 'space';
+  return 'guest';
+}
+
+function buildShiftRowsFromRaw(){
+  const facilityF = $('facilityFilter').value.trim();
+  const staffF = $('staffFilter').value.trim();
+  const statusMode = $('statusFilter').value;
+  const pStart = $('periodStart').value;
+  const pEnd = $('periodEnd').value;
+  const rateGuest = Number($('rateGuest').value) || 0;
+  const rateSpace = Number($('rateSpace').value) || 0;
+
+  const matched = rawRows.filter(r => {
+    if(facilityF && !r.facility.includes(facilityF)) return false;
+    if(staffF && !r.staff.includes(staffF)) return false;
+    if(statusMode === 'confirmed' && r.status !== 'confirmed') return false;
+    if(pStart && r.date < pStart) return false;
+    if(pEnd && r.date > pEnd) return false;
+    return true;
+  });
+
+  shiftRows = matched.map(r => {
+    const type = classifyType(r.memo);
+    return {
+      id: rowSeq++,
+      date: r.date,
+      type,
+      amount: type === 'space' ? rateSpace : rateGuest,
+      memo: r.memo,
+      include: true,
+      manual: false,
+    };
+  });
+  renderRows();
+}
+
+function addManualRow(){
+  shiftRows.push({
+    id: rowSeq++,
+    date: $('periodStart').value || todayStr(new Date()),
+    type: 'guest',
+    amount: Number($('rateGuest').value) || 0,
+    memo: '手動追加',
+    include: true,
+    manual: true,
+  });
+  renderRows();
+}
+
+function currentRate(type){
+  return type === 'space' ? Number($('rateSpace').value)||0 : Number($('rateGuest').value)||0;
+}
+
+function renderRows(){
+  shiftRows.sort((a,b)=> (a.date||'').localeCompare(b.date||''));
+  const tbody = $('rowsBody');
+  tbody.innerHTML = '';
+  shiftRows.forEach(row => {
+    const tr = document.createElement('tr');
+
+    const tdChk = document.createElement('td'); tdChk.className='center';
+    const chk = document.createElement('input'); chk.type='checkbox'; chk.checked = row.include;
+    chk.onchange = () => { row.include = chk.checked; renderSummary(); };
+    tdChk.appendChild(chk); tr.appendChild(tdChk);
+
+    const tdDate = document.createElement('td');
+    const dInp = document.createElement('input'); dInp.type='date'; dInp.value = row.date;
+    dInp.onchange = () => { row.date = dInp.value; };
+    tdDate.appendChild(dInp); tr.appendChild(tdDate);
+
+    const tdType = document.createElement('td');
+    const sel = document.createElement('select');
+    sel.innerHTML = `<option value="guest">宿泊客</option><option value="space">レンタルスペース客</option>`;
+    sel.value = row.type;
+    sel.onchange = () => {
+      row.type = sel.value;
+      row.amount = currentRate(row.type);
+      renderRows();
+    };
+    tdType.appendChild(sel); tr.appendChild(tdType);
+
+    const tdRate = document.createElement('td'); tdRate.className='num';
+    tdRate.textContent = yen(currentRate(row.type));
+    tr.appendChild(tdRate);
+
+    const tdAmt = document.createElement('td');
+    const amtInp = document.createElement('input'); amtInp.type='number'; amtInp.value = row.amount;
+    amtInp.className='num';
+    amtInp.onchange = () => { row.amount = Number(amtInp.value)||0; renderSummary(); };
+    tdAmt.appendChild(amtInp); tr.appendChild(tdAmt);
+
+    const tdMemo = document.createElement('td');
+    const memoInp = document.createElement('input'); memoInp.type='text'; memoInp.value = row.memo;
+    memoInp.onchange = () => { row.memo = memoInp.value; };
+    tdMemo.appendChild(memoInp); tr.appendChild(tdMemo);
+
+    const tdDel = document.createElement('td');
+    const delBtn = document.createElement('button'); delBtn.textContent='削除';
+    delBtn.className='btn-danger small-btn';
+    delBtn.onclick = () => { shiftRows = shiftRows.filter(x=>x.id!==row.id); renderRows(); };
+    tdDel.appendChild(delBtn); tr.appendChild(tdDel);
+
+    tbody.appendChild(tr);
+  });
+  renderSummary();
+}
+
+function renderSummary(){
+  const included = shiftRows.filter(r=>r.include);
+  const guestCount = included.filter(r=>r.type==='guest').length;
+  const spaceCount = included.filter(r=>r.type==='space').length;
+  const total = included.reduce((s,r)=> s + (Number(r.amount)||0), 0);
+  $('guestCount').textContent = guestCount;
+  $('spaceCount').textContent = spaceCount;
+  $('totalAmount').textContent = yen(total);
+}
+
+function preparePrintArea(){
+  const included = shiftRows.filter(r=>r.include);
+  const guestCount = included.filter(r=>r.type==='guest').length;
+  const spaceCount = included.filter(r=>r.type==='space').length;
+  const total = included.reduce((s,r)=> s + (Number(r.amount)||0), 0);
+
+  const periodLabel = `${$('periodStart').value} 〜 ${$('periodEnd').value}`;
+  $('printMeta').textContent = `対象期間：${periodLabel}　　発行日：${$('issueDate').value}`;
+  $('printPayer').textContent = $('payerName').value;
+  $('printStaff').textContent = $('staffDisplayName').value + ' 様';
+  $('printFacility').textContent = $('facilityDisplayName').value;
+
+  const body = $('printBody');
+  body.innerHTML = '';
+  included.forEach(r=>{
+    const tr = document.createElement('tr');
+    const typeLabel = r.type === 'space' ? 'レンタルスペース客' : '宿泊客';
+    tr.innerHTML = `<td>${r.date}</td><td>${typeLabel}</td><td class="num">${yen(currentRate(r.type))}</td><td class="num">${yen(r.amount)}</td><td>${r.memo||''}</td>`;
+    body.appendChild(tr);
+  });
+  $('printGuestCount').textContent = guestCount + ' 回';
+  $('printSpaceCount').textContent = spaceCount + ' 回';
+  $('printTotal').textContent = yen(total);
+}
+
+function downloadPDF(){
+  preparePrintArea();
+  window.print();
+}
+
+function downloadXLSX(){
+  const included = shiftRows.filter(r=>r.include);
+  const guestCount = included.filter(r=>r.type==='guest').length;
+  const spaceCount = included.filter(r=>r.type==='space').length;
+  const total = included.reduce((s,r)=> s + (Number(r.amount)||0), 0);
+
+  const aoa = [];
+  aoa.push(['清掃業務 給与明細']);
+  aoa.push([]);
+  aoa.push(['支払者', $('payerName').value]);
+  aoa.push(['支払先（清掃員）', $('staffDisplayName').value + ' 様']);
+  aoa.push(['担当施設', $('facilityDisplayName').value]);
+  aoa.push(['対象期間', `${$('periodStart').value} 〜 ${$('periodEnd').value}`]);
+  aoa.push(['発行日', $('issueDate').value]);
+  aoa.push([]);
+  aoa.push(['日付','区分','単価','支払額','備考']);
+  included.forEach(r=>{
+    const typeLabel = r.type === 'space' ? 'レンタルスペース客' : '宿泊客';
+    aoa.push([r.date, typeLabel, currentRate(r.type), r.amount, r.memo||'']);
+  });
+  aoa.push([]);
+  aoa.push(['宿泊客 清掃回数', guestCount]);
+  aoa.push(['レンタルスペース客 清掃回数', spaceCount]);
+  aoa.push(['合計支払額', total]);
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{wch:14},{wch:20},{wch:10},{wch:10},{wch:30}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '給与明細');
+  const fname = `payslip_${$('periodStart').value}_${$('staffDisplayName').value}.xlsx`;
+  XLSX.writeFile(wb, fname);
+}
+
+$('fetchBtn').onclick = fetchSheet;
+$('applyPeriodBtn').onclick = buildShiftRowsFromRaw;
+$('addRowBtn').onclick = addManualRow;
+$('pdfBtn').onclick = downloadPDF;
+$('xlsxBtn').onclick = downloadXLSX;
+
+renderRows();
+</script>
+</body>
+</html>

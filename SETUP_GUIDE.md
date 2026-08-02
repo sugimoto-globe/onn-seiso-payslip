@@ -5,8 +5,8 @@
 構成:
 
 ```
-ゲスト（中国本土含む） → 独自ドメインのフォーム（Cloudflare Pages）
-                        → /api/submit（Cloudflare Pages Function）
+ゲスト（中国本土含む） → 独自ドメインのフォーム（Cloudflare Workers）
+                        → /api/submit（同じWorker内で処理）
                         → Google Apps Script（サーバー間通信）
                         → Googleスプレッドシート（天王寺区味原町フォルダ）
 ```
@@ -44,19 +44,24 @@
 
 ---
 
-## 3. Cloudflare Pagesでフォームを公開する
+## 3. Cloudflare Workersでフォームを公開する
 
-1. Cloudflareダッシュボード → [Workers & Pages] → [作成] → [Pages] → [Gitに接続]。
-2. このリポジトリ（`sugimoto-globe/onn-seiso-payslip`）を選択し、以下を設定:
-   - **ルートディレクトリ**: `guest-form`
-   - **ビルドコマンド**: 空欄のまま
-   - **ビルド出力ディレクトリ**: `/`
-3. [環境変数] に以下を追加（本番・プレビュー両方）:
-   - 変数名: `GAS_WEBAPP_URL`
+Cloudflareの現行UIでは「Pages」ではなく統合された「Workers」からのGit連携デプロイになります。このリポジトリには、それに対応した `wrangler.jsonc`（設定ファイル）と `worker/index.js`（`/api/submit` の中継処理）を既に用意してあります。
+
+1. Cloudflareダッシュボード → [Compute] → [Workers & Pages] → 右上 [Create application]。
+2. 「Import a repository」からGitHubと連携し、このリポジトリ（`sugimoto-globe/onn-seiso-payslip`）を選択。
+3. 「Set up your application」画面:
+   - **Project name**: `shogunhouse-osaka-guest-form`（`wrangler.jsonc` の `name` と合わせる）
+   - **Build command**: 空欄のまま
+   - **Deploy command**: `npx wrangler deploy`（自動入力されているはずなのでそのまま）
+   - ルートディレクトリの指定項目は無し（リポジトリ直下の `wrangler.jsonc` がそのまま使われる）
+4. [Deploy] を実行。
+5. デプロイ完了後、プロジェクトの [Settings] → [Variables and Secrets] を開き、以下を追加:
+   - 名前: `GAS_WEBAPP_URL`
    - 値: 手順1-6で控えたApps ScriptのウェブアプリURL
-   - 「暗号化する（Secret）」にチェック
-4. [保存してデプロイ] を実行。
-5. デプロイ完了後、[カスタムドメイン] タブから手順2のドメイン（例: `guest.shogunhouse-osaka.com`）を追加する。
+   - 種類: **Secret**
+   - 保存すると自動的に再デプロイされる。
+6. プロジェクトの [Settings] → [Domains & Routes]（またはCustom Domains）から手順2のドメイン（例: `shogunhouse-osaka.com` や そのサブドメイン）を追加する。
 
 ---
 
@@ -80,5 +85,6 @@
 ## ファイル構成
 
 - `guest-form/index.html` … ゲスト向け入力フォーム本体（日本語／英語／簡体字中国語／繁体字中国語／韓国語の5言語対応）
-- `guest-form/functions/api/submit.js` … Cloudflare Pages Function（Apps Scriptへの中継）
+- `worker/index.js` … Cloudflare Worker（`/api/submit` を受けてApps Scriptへ中継、それ以外は静的ファイルを配信）
+- `wrangler.jsonc` … Cloudflare Workersのデプロイ設定
 - `apps-script/Code.gs` … スプレッドシートへの書き込み・パスポート画像保存スクリプト

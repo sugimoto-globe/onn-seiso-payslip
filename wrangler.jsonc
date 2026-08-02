@@ -1,0 +1,14 @@
+{
+  // Cloudflare Worker config for the SHOGUN HOUSE OSAKA guest registration form.
+  // Deployed via "npx wrangler deploy" (Cloudflare Workers Builds, connected to this repo).
+  //
+  // After the first deploy, set the secret the worker needs:
+  //   npx wrangler secret put GAS_WEBAPP_URL
+  // (paste the Google Apps Script Web App URL from apps-script/Code.gs's deployment)
+  "name": "shogunhouse-osaka-guest-form",
+  "compatibility_date": "2025-03-01",
+  "main": "worker/index.js",
+  "assets": {
+    "directory": "./guest-form"
+  }
+}

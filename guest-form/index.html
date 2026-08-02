@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SHOGUN HOUSE OSAKA｜宿泊者名簿</title>
+<style>
+  :root{
+    --bg:#f5f6f8; --panel:#ffffff; --border:#dde1e6; --text:#1f2430; --muted:#6b7280;
+    --accent:#2f3b52; --accent2:#3f5a8a; --danger:#c0392b; --ok:#1e824c;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic",
+      "Noto Sans JP",sans-serif; background:var(--bg); color:var(--text); font-size:14px;
+  }
+  .wrap{max-width:640px; margin:0 auto; padding:20px 16px 90px;}
+  .lang-bar{display:flex; gap:6px; justify-content:flex-end; margin-bottom:10px;}
+  .lang-btn{padding:5px 10px; font-size:12px; border:1px solid var(--border); background:#fff; border-radius:6px; cursor:pointer;}
+  .lang-btn.active{background:var(--accent2); color:#fff; border-color:var(--accent2);}
+
+  .hotel-header{background:var(--accent); color:#fff; border-radius:10px; padding:18px 20px; margin-bottom:16px;}
+  .hotel-header .name{font-size:19px; font-weight:700; letter-spacing:.03em;}
+  .hotel-header .meta{margin-top:8px; font-size:12px; line-height:1.8; color:#dfe4ee;}
+  .hotel-header .meta b{color:#fff; font-weight:600;}
+
+  h1.page-title{font-size:16px; margin:0 0 4px;}
+  .sub{color:var(--muted); font-size:12.5px; margin-bottom:18px; line-height:1.7;}
+
+  .panel{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:16px 18px; margin-bottom:14px;}
+  .panel h2{font-size:13.5px; margin:0 0 12px; color:var(--accent); display:flex; align-items:center; gap:8px;}
+  .badge{display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:600; background:#e6f0fb; color:#2b5b9e;}
+  .badge.rep{background:#fdf1e2; color:#a9660a;}
+
+  .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px 14px;}
+  label{display:block; font-size:12px; color:var(--muted); margin-bottom:3px;}
+  label .req{color:var(--danger); margin-left:2px;}
+  input[type=text], input[type=number], input[type=date], input[type=tel], input[type=email], select, textarea{
+    width:100%; padding:9px 9px; border:1px solid var(--border); border-radius:6px;
+    font-size:14px; background:#fff; color:var(--text); font-family:inherit;
+  }
+  input[type=file]{width:100%; font-size:12.5px;}
+  textarea{min-height:60px; resize:vertical;}
+  .field{margin-bottom:10px;}
+  .hint{font-size:11px; color:var(--muted); margin-top:4px; line-height:1.6;}
+  .checkline{display:flex; align-items:flex-start; gap:8px; font-size:12.5px; color:var(--text); margin-top:4px;}
+  .checkline input{margin-top:3px;}
+
+  .guest-card{border:1px dashed var(--border); border-radius:8px; padding:14px 14px 6px; margin-bottom:12px; background:#fafbfc;}
+  .guest-card-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;}
+  .guest-card-head .label{font-weight:700; font-size:13px; color:var(--accent);}
+  .btn-remove{background:#fdecea; color:var(--danger); border:1px solid #f3c9c4; border-radius:6px; padding:4px 9px; font-size:11px; cursor:pointer;}
+
+  .btnbar{display:flex; gap:8px; flex-wrap:wrap; margin-top:6px;}
+  button{cursor:pointer; border:none; border-radius:7px; padding:10px 16px; font-size:13.5px; font-weight:600; font-family:inherit;}
+  .btn-primary{background:var(--accent2); color:#fff; width:100%; padding:13px;}
+  .btn-primary:disabled{background:#9fb0c8; cursor:not-allowed;}
+  .btn-secondary{background:#eef0f3; color:var(--text); border:1px solid var(--border);}
+  .btn-secondary:hover{background:#e3e6ea;}
+
+  .status-msg{font-size:12.5px; margin-top:10px; line-height:1.6;}
+  .status-msg.err{color:var(--danger);}
+  .status-msg.ok{color:var(--ok);}
+
+  .done-panel{display:none; text-align:center; padding:40px 20px;}
+  .done-panel .check{font-size:44px; color:var(--ok); margin-bottom:10px;}
+  .done-panel h2{font-size:16px; margin:0 0 8px;}
+  .done-panel p{color:var(--muted); font-size:13px; line-height:1.8;}
+
+  .footer-note{font-size:11px; color:var(--muted); text-align:center; margin-top:20px; line-height:1.8;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="lang-bar">
+    <button class="lang-btn active" data-lang="ja">日本語</button>
+    <button class="lang-btn" data-lang="en">English</button>
+    <button class="lang-btn" data-lang="zh">中文</button>
+  </div>
+
+  <div class="hotel-header">
+    <div class="name">SHOGUN HOUSE OSAKA</div>
+    <div class="meta">
+      <div data-i18n="hotelAddressLabel"><b data-i18n="labelAddress">住所</b>：大阪市西成区鶴見橋2-8-29</div>
+      <div data-i18n="hotelLicenseLabel"><b data-i18n="labelLicense">許可番号</b>：大阪市指令 大保環第26-2091号</div>
+      <div data-i18n="hotelManagerLabel"><b data-i18n="labelManager">管理者</b>：株式会社グローブ　代表取締役　杉本拓巳</div>
+    </div>
+  </div>
+
+  <h1 class="page-title" data-i18n="pageTitle">宿泊者名簿 ご入力のお願い</h1>
+  <div class="sub" data-i18n="pageDesc">
+    旅館業法に基づき、ご宿泊されるお客様全員の情報をご入力いただいております。ご入力いただいた内容は、法令に基づく名簿の保管および行政機関への提出の目的にのみ使用し、その他の目的では使用しません。チェックインまでにご入力・送信をお願いいたします。
+  </div>
+
+  <form id="guestForm">
+    <div class="panel">
+      <h2 data-i18n="sectionStay">① ご宿泊情報</h2>
+      <div class="grid">
+        <div class="field">
+          <label data-i18n="labelCheckin">チェックイン予定日<span class="req">*</span></label>
+          <input type="date" id="checkin" required>
+        </div>
+        <div class="field">
+          <label data-i18n="labelCheckout">チェックアウト予定日</label>
+          <input type="date" id="checkout">
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2 data-i18n="sectionGuests">② 宿泊者情報（全員分）</h2>
+      <div id="guestList"></div>
+      <div class="btnbar">
+        <button type="button" class="btn-secondary" id="addGuestBtn" data-i18n="btnAddGuest">＋ 宿泊者を追加</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2 data-i18n="sectionConsent">③ 確認事項</h2>
+      <label class="checkline">
+        <input type="checkbox" id="consent" required>
+        <span data-i18n="consentText">上記の内容に間違いがないこと、また入力情報が旅館業法に基づく宿泊者名簿として利用されることに同意します。</span>
+      </label>
+    </div>
+
+    <button type="submit" class="btn-primary" id="submitBtn" data-i18n="btnSubmit">送信する</button>
+    <div class="status-msg" id="formStatus"></div>
+  </form>
+
+  <div class="done-panel" id="donePanel">
+    <div class="check">✓</div>
+    <h2 data-i18n="doneTitle">送信が完了しました</h2>
+    <p data-i18n="doneDesc">ご入力ありがとうございました。当日のチェックインをスタッフ一同お待ちしております。</p>
+  </div>
+
+  <div class="footer-note">
+    SHOGUN HOUSE OSAKA / 株式会社グローブ<br>
+    <span data-i18n="footerPrivacy">入力情報は旅館業法に基づく宿泊者名簿の作成・保管、および行政機関への提出以外の目的には使用しません。</span>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   送信先: Cloudflare Pages Function（同一ドメイン内の /api/submit）
+   このフォームは script.google.com へ直接アクセスしません。
+   （中国本土などGoogleドメインへの接続が制限される環境からでも
+   同一ドメインの /api/submit にアクセスできれば送信可能にするため）
+   ========================================================= */
+const SUBMIT_ENDPOINT = '/api/submit';
+
+const $ = (id) => document.getElementById(id);
+
+/* ---------------- i18n ---------------- */
+const I18N = {
+  ja: {
+    labelAddress:'住所', labelLicense:'許可番号', labelManager:'管理者',
+    pageTitle:'宿泊者名簿 ご入力のお願い',
+    pageDesc:'旅館業法に基づき、ご宿泊されるお客様全員の情報をご入力いただいております。ご入力いただいた内容は、法令に基づく名簿の保管および行政機関への提出の目的にのみ使用し、その他の目的では使用しません。チェックインまでにご入力・送信をお願いいたします。',
+    sectionStay:'① ご宿泊情報', labelCheckin:'チェックイン予定日', labelCheckout:'チェックアウト予定日',
+    sectionGuests:'② 宿泊者情報（全員分）', btnAddGuest:'＋ 宿泊者を追加',
+    sectionConsent:'③ 確認事項',
+    consentText:'上記の内容に間違いがないこと、また入力情報が旅館業法に基づく宿泊者名簿として利用されることに同意します。',
+    btnSubmit:'送信する', btnSubmitting:'送信中...',
+    doneTitle:'送信が完了しました', doneDesc:'ご入力ありがとうございました。当日のチェックインをスタッフ一同お待ちしております。',
+    footerPrivacy:'入力情報は旅館業法に基づく宿泊者名簿の作成・保管、および行政機関への提出以外の目的には使用しません。',
+    guestRep:'代表者（宿泊者1）', guestN:'宿泊者',
+    fName:'氏名', fKana:'フリガナ（任意）', fBirth:'生年月日', fNationality:'国籍',
+    fOccupation:'職業', fPassportNo:'旅券番号', fPassportImg:'旅券（パスポート）画像',
+    fAddress:'住所', fPhone:'電話番号', fEmail:'メールアドレス（任意・確認連絡用）',
+    fSameAsRep:'代表者と同じ住所',
+    natJapan:'日本', natOther:'その他（入力）',
+    remove:'削除',
+    passportHint:'外国籍の方は旅券番号のご入力にご協力ください（画像添付は任意です）',
+    errRequired:'必須項目が未入力です。ご確認ください。',
+    errCheckin:'チェックイン予定日を入力してください。',
+    errConsent:'確認事項へのご同意が必要です。',
+    errSubmit:'送信に失敗しました。通信環境をご確認のうえ、再度お試しください。',
+    sending:'送信中です。しばらくお待ちください...'
+  },
+  en: {
+    labelAddress:'Address', labelLicense:'License No.', labelManager:'Manager',
+    pageTitle:'Guest Registration Form',
+    pageDesc:'Under Japan’s Hotel Business Act, we are required to record information for every guest staying with us. The information you provide will only be used to maintain the legally required guest register and, if requested, to submit it to the relevant government authority. Please complete and submit this form before check-in.',
+    sectionStay:'1. Stay Details', labelCheckin:'Check-in date', labelCheckout:'Check-out date',
+    sectionGuests:'2. Guest Details (all guests)', btnAddGuest:'+ Add another guest',
+    sectionConsent:'3. Confirmation',
+    consentText:'I confirm the information above is accurate and agree that it will be used as the legally required guest register.',
+    btnSubmit:'Submit', btnSubmitting:'Submitting...',
+    doneTitle:'Submitted successfully', doneDesc:'Thank you. We look forward to welcoming you at check-in.',
+    footerPrivacy:'Information provided is used only to create/maintain the guest register required by law and for submission to government authorities.',
+    guestRep:'Primary guest (Guest 1)', guestN:'Guest',
+    fName:'Full name', fKana:'Furigana (optional)', fBirth:'Date of birth', fNationality:'Nationality',
+    fOccupation:'Occupation', fPassportNo:'Passport number', fPassportImg:'Passport photo',
+    fAddress:'Home address', fPhone:'Phone number', fEmail:'Email (optional, for confirmation)',
+    fSameAsRep:'Same address as primary guest',
+    natJapan:'Japan', natOther:'Other (please type)',
+    remove:'Remove',
+    passportHint:'If you are not a Japanese national, please provide your passport number (photo upload is optional).',
+    errRequired:'Please fill in all required fields.',
+    errCheckin:'Please enter your check-in date.',
+    errConsent:'Please agree to the confirmation statement.',
+    errSubmit:'Submission failed. Please check your connection and try again.',
+    sending:'Sending, please wait...'
+  },
+  zh: {
+    labelAddress:'地址', labelLicense:'许可证号', labelManager:'管理者',
+    pageTitle:'住宿者名单登记表',
+    pageDesc:'根据日本《旅馆业法》规定，我们需要登记所有入住客人的信息。您填写的信息仅用于制作、保存法律规定的住宿者名单，并在需要时提交给相关行政机关，不会用于其他用途。请在入住前填写并提交本表单。',
+    sectionStay:'① 住宿信息', labelCheckin:'预计入住日期', labelCheckout:'预计退房日期',
+    sectionGuests:'② 住宿者信息（全体成员）', btnAddGuest:'＋ 添加住宿者',
+    sectionConsent:'③ 确认事项',
+    consentText:'我确认以上内容属实，并同意所填信息将作为《旅馆业法》规定的住宿者名单使用。',
+    btnSubmit:'提交', btnSubmitting:'正在提交...',
+    doneTitle:'提交成功', doneDesc:'感谢您的填写。我们期待在入住当天为您服务。',
+    footerPrivacy:'所填信息仅用于制作、保存法律规定的住宿者名单，以及提交给行政机关，不作其他用途。',
+    guestRep:'代表人（住宿者1）', guestN:'住宿者',
+    fName:'姓名', fKana:'假名注音（选填）', fBirth:'出生日期', fNationality:'国籍',
+    fOccupation:'职业', fPassportNo:'护照号码', fPassportImg:'护照照片',
+    fAddress:'住址', fPhone:'电话号码', fEmail:'邮箱地址（选填，用于确认联系）',
+    fSameAsRep:'与代表人地址相同',
+    natJapan:'日本', natOther:'其他（请输入）',
+    remove:'删除',
+    passportHint:'非日本籍人士请填写护照号码（上传护照照片为选填项）。',
+    errRequired:'请填写所有必填项目。',
+    errCheckin:'请填写预计入住日期。',
+    errConsent:'请同意确认事项后再提交。',
+    errSubmit:'提交失败，请检查网络连接后重试。',
+    sending:'正在发送，请稍候...'
+  }
+};
+let currentLang = 'ja';
+
+function applyI18n(){
+  const dict = I18N[currentLang];
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    const key = el.getAttribute('data-i18n');
+    if(dict[key]) el.textContent = dict[key];
+  });
+  document.querySelectorAll('.guest-card').forEach(card=>renderGuestCardLabels(card));
+  document.querySelectorAll('.lang-btn').forEach(b=>b.classList.toggle('active', b.dataset.lang===currentLang));
+}
+document.querySelectorAll('.lang-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{ currentLang = btn.dataset.lang; applyI18n(); });
+});
+
+/* ---------------- Guest cards ---------------- */
+let guestSeq = 0;
+
+function createGuestCard(isRep){
+  const dict = I18N[currentLang];
+  const id = 'g' + (guestSeq++);
+  const wrap = document.createElement('div');
+  wrap.className = 'guest-card';
+  wrap.dataset.id = id;
+  wrap.dataset.rep = isRep ? '1' : '0';
+
+  wrap.innerHTML = `
+    <div class="guest-card-head">
+      <span class="label" data-role="cardlabel"></span>
+      ${isRep ? '' : `<button type="button" class="btn-remove" data-role="remove">${dict.remove}</button>`}
+    </div>
+    <div class="grid">
+      <div class="field">
+        <label data-role="l-name">${dict.fName}<span class="req">*</span></label>
+        <input type="text" data-f="name" required>
+      </div>
+      <div class="field">
+        <label data-role="l-kana">${dict.fKana}</label>
+        <input type="text" data-f="kana">
+      </div>
+      <div class="field">
+        <label data-role="l-birth">${dict.fBirth}</label>
+        <input type="date" data-f="birth">
+      </div>
+      <div class="field">
+        <label data-role="l-nat">${dict.fNationality}<span class="req">*</span></label>
+        <select data-f="nationalitySel">
+          <option value="__JP__">${dict.natJapan}</option>
+          <option value="__OTHER__">${dict.natOther}</option>
+        </select>
+        <input type="text" data-f="nationalityOther" style="margin-top:6px; display:none;">
+      </div>
+      <div class="field">
+        <label data-role="l-occ">${dict.fOccupation}<span class="req">*</span></label>
+        <input type="text" data-f="occupation" required>
+      </div>
+      <div class="field" data-role="passportNoField" style="display:none;">
+        <label data-role="l-passno">${dict.fPassportNo}<span class="req">*</span></label>
+        <input type="text" data-f="passportNo">
+      </div>
+    </div>
+    <div class="field" data-role="passportImgField" style="display:none;">
+      <label data-role="l-passimg">${dict.fPassportImg}</label>
+      <input type="file" accept="image/*" capture="environment" data-f="passportImg">
+      <div class="hint" data-role="passporthint">${dict.passportHint}</div>
+    </div>
+    ${isRep ? `
+    <div class="grid" style="margin-top:4px;">
+      <div class="field">
+        <label data-role="l-addr">${dict.fAddress}<span class="req">*</span></label>
+        <input type="text" data-f="address" required>
+      </div>
+      <div class="field">
+        <label data-role="l-phone">${dict.fPhone}<span class="req">*</span></label>
+        <input type="tel" data-f="phone" required>
+      </div>
+      <div class="field">
+        <label data-role="l-email">${dict.fEmail}</label>
+        <input type="email" data-f="email">
+      </div>
+    </div>` : `
+    <div class="checkline">
+      <input type="checkbox" data-f="sameAddr" checked>
+      <span data-role="l-sameaddr">${dict.fSameAsRep}</span>
+    </div>
+    <div class="field" data-role="ownAddrField" style="display:none; margin-top:8px;">
+      <label data-role="l-addr2">${dict.fAddress}</label>
+      <input type="text" data-f="address">
+    </div>`}
+  `;
+
+  // nationality toggle
+  const natSel = wrap.querySelector('[data-f=nationalitySel]');
+  const natOther = wrap.querySelector('[data-f=nationalityOther]');
+  const passNoField = wrap.querySelector('[data-role=passportNoField]');
+  const passImgField = wrap.querySelector('[data-role=passportImgField]');
+  const passNoInput = wrap.querySelector('[data-f=passportNo]');
+  function updateNatUI(){
+    const isJP = natSel.value === '__JP__';
+    natOther.style.display = isJP ? 'none' : 'block';
+    passNoField.style.display = isJP ? 'none' : 'block';
+    passImgField.style.display = isJP ? 'none' : 'block';
+    passNoInput.required = !isJP;
+  }
+  natSel.addEventListener('change', updateNatUI);
+  updateNatUI();
+
+  // same-address toggle (non-rep only)
+  if(!isRep){
+    const sameChk = wrap.querySelector('[data-f=sameAddr]');
+    const ownAddrField = wrap.querySelector('[data-role=ownAddrField]');
+    sameChk.addEventListener('change', ()=>{
+      ownAddrField.style.display = sameChk.checked ? 'none' : 'block';
+    });
+  }
+
+  const removeBtn = wrap.querySelector('[data-role=remove]');
+  if(removeBtn){
+    removeBtn.addEventListener('click', ()=>{ wrap.remove(); renumberGuests(); });
+  }
+
+  return wrap;
+}
+
+function renderGuestCardLabels(card){
+  const dict = I18N[currentLang];
+  const set = (role, text) => { const el = card.querySelector(`[data-role=${role}]`); if(el) el.textContent = text; };
+  set('l-name', dict.fName + ' *');
+  set('l-kana', dict.fKana);
+  set('l-birth', dict.fBirth);
+  set('l-nat', dict.fNationality + ' *');
+  set('l-occ', dict.fOccupation + ' *');
+  set('l-passno', dict.fPassportNo + ' *');
+  set('l-passimg', dict.fPassportImg);
+  set('passporthint', dict.passportHint);
+  set('l-addr', dict.fAddress + ' *');
+  set('l-addr2', dict.fAddress);
+  set('l-phone', dict.fPhone + ' *');
+  set('l-email', dict.fEmail);
+  set('l-sameaddr', dict.fSameAsRep);
+  const remove = card.querySelector('[data-role=remove]');
+  if(remove) remove.textContent = dict.remove;
+  const natSel = card.querySelector('[data-f=nationalitySel]');
+  if(natSel){
+    natSel.options[0].textContent = dict.natJapan;
+    natSel.options[1].textContent = dict.natOther;
+  }
+  renumberGuests();
+}
+
+function renumberGuests(){
+  const dict = I18N[currentLang];
+  const cards = document.querySelectorAll('.guest-card');
+  cards.forEach((card, i)=>{
+    const labelEl = card.querySelector('[data-role=cardlabel]');
+    labelEl.textContent = (i===0 ? dict.guestRep : `${dict.guestN} ${i+1}`);
+  });
+}
+
+function addGuest(isRep){
+  const card = createGuestCard(isRep);
+  $('guestList').appendChild(card);
+  renumberGuests();
+}
+$('addGuestBtn').addEventListener('click', ()=>addGuest(false));
+addGuest(true); // 代表者は最初から1枚表示
+
+/* ---------------- Submit ---------------- */
+function fileToBase64(file){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function collectGuests(){
+  const cards = Array.from(document.querySelectorAll('.guest-card'));
+  const repAddress = cards[0].querySelector('[data-f=address]').value.trim();
+  const guests = [];
+  for(let i=0;i<cards.length;i++){
+    const card = cards[i];
+    const isRep = card.dataset.rep === '1';
+    const get = (f) => { const el = card.querySelector(`[data-f=${f}]`); return el ? el.value.trim() : ''; };
+    const natSel = get('nationalitySel');
+    const nationality = natSel === '__JP__' ? I18N.ja.natJapan : (get('nationalityOther') || I18N.ja.natOther);
+    let address = '';
+    if(isRep){
+      address = repAddress;
+    } else {
+      const sameAddr = card.querySelector('[data-f=sameAddr]');
+      address = (sameAddr && sameAddr.checked) ? repAddress : get('address');
+    }
+    let passportImageBase64 = '', passportImageName = '';
+    const fileInput = card.querySelector('[data-f=passportImg]');
+    if(fileInput && fileInput.files && fileInput.files[0]){
+      passportImageBase64 = await fileToBase64(fileInput.files[0]);
+      passportImageName = fileInput.files[0].name;
+    }
+    guests.push({
+      isRepresentative: isRep,
+      name: get('name'),
+      kana: get('kana'),
+      birthday: get('birth'),
+      nationality,
+      occupation: get('occupation'),
+      passportNo: get('passportNo'),
+      passportImageBase64,
+      passportImageName,
+      address,
+      phone: isRep ? get('phone') : '',
+      email: isRep ? get('email') : ''
+    });
+  }
+  return guests;
+}
+
+$('guestForm').addEventListener('submit', async (ev)=>{
+  ev.preventDefault();
+  const dict = I18N[currentLang];
+  const statusEl = $('formStatus');
+  statusEl.className = 'status-msg';
+
+  if(!$('checkin').value){
+    statusEl.textContent = dict.errCheckin; statusEl.className = 'status-msg err';
+    return;
+  }
+  if(!$('consent').checked){
+    statusEl.textContent = dict.errConsent; statusEl.className = 'status-msg err';
+    return;
+  }
+  if(!$('guestForm').reportValidity()){
+    statusEl.textContent = dict.errRequired; statusEl.className = 'status-msg err';
+    return;
+  }
+
+  const submitBtn = $('submitBtn');
+  submitBtn.disabled = true;
+  submitBtn.textContent = dict.btnSubmitting;
+  statusEl.textContent = dict.sending; statusEl.className = 'status-msg';
+
+  try{
+    const guests = await collectGuests();
+    const payload = {
+      checkin: $('checkin').value,
+      checkout: $('checkout').value,
+      guestCount: guests.length,
+      hotel: 'SHOGUN HOUSE OSAKA',
+      guests
+    };
+    const res = await fetch(SUBMIT_ENDPOINT, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json().catch(()=>({result:'success'}));
+    if(data.result === 'error') throw new Error(data.message || 'error');
+
+    $('guestForm').style.display = 'none';
+    $('donePanel').style.display = 'block';
+  }catch(err){
+    statusEl.textContent = dict.errSubmit;
+    statusEl.className = 'status-msg err';
+    submitBtn.disabled = false;
+    submitBtn.textContent = dict.btnSubmit;
+  }
+});
+
+applyI18n();
+</script>
+</body>
+</html>

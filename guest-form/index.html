@@ -458,6 +458,38 @@ function fileToBase64(file){
   });
 }
 
+// スマホのカメラ写真はそのままだと数MB〜十数MBになり送信に失敗しやすいため、
+// 長辺1600px・JPEG品質0.75程度まで縮小してから送信する。
+// 変換できない場合（対応していないファイル形式など）は元のファイルをそのまま使う。
+const PASSPORT_IMAGE_MAX_DIMENSION = 1600;
+const PASSPORT_IMAGE_JPEG_QUALITY = 0.75;
+
+async function fileToCompressedBase64(file){
+  try{
+    const dataUrl = await fileToBase64(file);
+    const img = await loadImage(dataUrl);
+    const scale = Math.min(1, PASSPORT_IMAGE_MAX_DIMENSION / Math.max(img.width, img.height));
+    const w = Math.max(1, Math.round(img.width * scale));
+    const h = Math.max(1, Math.round(img.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, w, h);
+    return canvas.toDataURL('image/jpeg', PASSPORT_IMAGE_JPEG_QUALITY);
+  }catch(err){
+    return fileToBase64(file); // 圧縮に失敗したら元のファイルをそのまま使う
+  }
+}
+
+function loadImage(src){
+  return new Promise((resolve, reject)=>{
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
 async function collectGuests(){
   const cards = Array.from(document.querySelectorAll('.guest-card'));
   const repAddress = cards[0].querySelector('[data-f=address]').value.trim();
@@ -478,7 +510,7 @@ async function collectGuests(){
     let passportImageBase64 = '', passportImageName = '';
     const fileInput = card.querySelector('[data-f=passportImg]');
     if(fileInput && fileInput.files && fileInput.files[0]){
-      passportImageBase64 = await fileToBase64(fileInput.files[0]);
+      passportImageBase64 = await fileToCompressedBase64(fileInput.files[0]);
       passportImageName = fileInput.files[0].name;
     }
     guests.push({

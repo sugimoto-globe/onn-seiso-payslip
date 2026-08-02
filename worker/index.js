@@ -16,7 +16,9 @@
 // Variables and Secrets. It should point at the deployed Apps Script Web
 // App URL (https://script.google.com/macros/s/xxxxx/exec).
 
-const MAX_BODY_BYTES = 8 * 1024 * 1024; // 8MB safety limit (covers a passport photo)
+// Passport photos are compressed client-side to ~1600px/JPEG before upload,
+// so this only needs headroom for a few compressed images per submission.
+const MAX_BODY_BYTES = 20 * 1024 * 1024;
 
 export default {
   async fetch(request, env) {

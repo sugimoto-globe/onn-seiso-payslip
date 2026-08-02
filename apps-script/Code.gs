@@ -2,17 +2,22 @@
  * SHOGUN HOUSE OSAKA — 宿泊者名簿 受付スクリプト
  *
  * 使い方:
- *  1. Google ドライブの「天王寺区味原町」フォルダ内に、宿泊者名簿用の
- *     Google スプレッドシートを新規作成する。
- *  2. そのスプレッドシートで [拡張機能] > [Apps Script] を開き、
+ *  1. 下の SPREADSHEET_ID を、書き込み先にしたいスプレッドシートのIDに書き換える
+ *     （スプレッドシートのURL https://docs.google.com/spreadsheets/d/【ここがID】/edit の【ここ】部分）。
+ *     どのスプレッドシートから Apps Script を開いてデプロイしても、
+ *     常にこのIDのスプレッドシートに書き込まれる。
+ *  2. Apps Script の編集画面（どのスプレッドシートに紐付けたものでも良い）で
  *     このファイルの内容を丸ごと貼り付けて保存する。
  *  3. [デプロイ] > [新しいデプロイ] > 種類「ウェブアプリ」
  *       - 実行するユーザー: 自分
  *       - アクセスできるユーザー: 全員
  *     でデプロイし、発行された /exec URL を控える。
- *  4. Cloudflare Pages の環境変数 GAS_WEBAPP_URL にその URL を設定する
+ *  4. Cloudflare の環境変数（Secret） GAS_WEBAPP_URL にその URL を設定する
  *     （フォーム側から直接このURLを呼び出すことはない）。
  */
+
+// 書き込み先スプレッドシートのID（西成区鶴見橋フォルダの「SHOGUN HOUSE 宿泊者名簿」）
+const SPREADSHEET_ID = '1iUT5OKp8-nvxt9F5UcuqzAZLws_wPd6wkGttnUS81Vo';
 
 const SHEET_NAME = '宿泊者名簿';
 const PASSPORT_FOLDER_NAME = 'パスポート画像';
@@ -106,7 +111,7 @@ function doGet(e) {
 }
 
 function getOrCreateSheet_() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   let sheet = ss.getSheetByName(SHEET_NAME);
   if (!sheet) {
     sheet = ss.insertSheet(SHEET_NAME);
@@ -134,7 +139,7 @@ function savePassportImage_(base64Data, fileName, checkinDate, guestName) {
 }
 
 function getOrCreatePassportFolder_() {
-  const ssFile = DriveApp.getFileById(SpreadsheetApp.getActiveSpreadsheet().getId());
+  const ssFile = DriveApp.getFileById(SPREADSHEET_ID);
   const parents = ssFile.getParents();
   const parentFolder = parents.hasNext() ? parents.next() : DriveApp.getRootFolder();
   const existing = parentFolder.getFoldersByName(PASSPORT_FOLDER_NAME);

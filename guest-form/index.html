@@ -15,8 +15,8 @@
       "Noto Sans JP",sans-serif; background:var(--bg); color:var(--text); font-size:14px;
   }
   .wrap{max-width:640px; margin:0 auto; padding:20px 16px 90px;}
-  .lang-bar{display:flex; gap:6px; justify-content:flex-end; margin-bottom:10px;}
-  .lang-btn{padding:5px 10px; font-size:12px; border:1px solid var(--border); background:#fff; border-radius:6px; cursor:pointer;}
+  .lang-bar{display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; margin-bottom:10px;}
+  .lang-btn{padding:5px 9px; font-size:11.5px; border:1px solid var(--border); background:#fff; border-radius:6px; cursor:pointer;}
   .lang-btn.active{background:var(--accent2); color:#fff; border-color:var(--accent2);}
 
   .hotel-header{background:var(--accent); color:#fff; border-radius:10px; padding:18px 20px; margin-bottom:16px;}
@@ -76,7 +76,9 @@
   <div class="lang-bar">
     <button class="lang-btn active" data-lang="ja">日本語</button>
     <button class="lang-btn" data-lang="en">English</button>
-    <button class="lang-btn" data-lang="zh">中文</button>
+    <button class="lang-btn" data-lang="zh-Hans">简体中文</button>
+    <button class="lang-btn" data-lang="zh-Hant">繁體中文</button>
+    <button class="lang-btn" data-lang="ko">한국어</button>
   </div>
 
   <div class="hotel-header">
@@ -203,7 +205,7 @@ const I18N = {
     errSubmit:'Submission failed. Please check your connection and try again.',
     sending:'Sending, please wait...'
   },
-  zh: {
+  'zh-Hans': {
     labelAddress:'地址', labelLicense:'许可证号', labelManager:'管理者',
     pageTitle:'住宿者名单登记表',
     pageDesc:'根据日本《旅馆业法》规定，我们需要登记所有入住客人的信息。您填写的信息仅用于制作、保存法律规定的住宿者名单，并在需要时提交给相关行政机关，不会用于其他用途。请在入住前填写并提交本表单。',
@@ -227,6 +229,56 @@ const I18N = {
     errConsent:'请同意确认事项后再提交。',
     errSubmit:'提交失败，请检查网络连接后重试。',
     sending:'正在发送，请稍候...'
+  },
+  'zh-Hant': {
+    labelAddress:'地址', labelLicense:'許可證號', labelManager:'管理者',
+    pageTitle:'住宿者名單登記表',
+    pageDesc:'根據日本《旅館業法》規定，我們需要登記所有入住客人的資訊。您填寫的資訊僅用於製作、保存法律規定的住宿者名冊，並在需要時提交給相關行政機關，不會用於其他用途。請在入住前填寫並提交本表單。',
+    sectionStay:'① 住宿資訊', labelCheckin:'預計入住日期', labelCheckout:'預計退房日期',
+    sectionGuests:'② 住宿者資訊（全體成員）', btnAddGuest:'＋ 新增住宿者',
+    sectionConsent:'③ 確認事項',
+    consentText:'我確認以上內容屬實，並同意所填資訊將作為《旅館業法》規定的住宿者名冊使用。',
+    btnSubmit:'送出', btnSubmitting:'送出中...',
+    doneTitle:'送出成功', doneDesc:'感謝您的填寫。我們期待在入住當天為您服務。',
+    footerPrivacy:'所填資訊僅用於製作、保存法律規定的住宿者名冊，以及提交給行政機關，不作其他用途。',
+    guestRep:'代表人（住宿者1）', guestN:'住宿者',
+    fName:'姓名', fKana:'假名注音（選填）', fBirth:'出生日期', fNationality:'國籍',
+    fOccupation:'職業', fPassportNo:'護照號碼', fPassportImg:'護照照片',
+    fAddress:'住址', fPhone:'電話號碼', fEmail:'電子郵件（選填，用於確認聯繫）',
+    fSameAsRep:'與代表人地址相同',
+    natJapan:'日本', natOther:'其他（請輸入）',
+    remove:'刪除',
+    passportHint:'非日本籍人士請填寫護照號碼（上傳護照照片為選填項目）。',
+    errRequired:'請填寫所有必填項目。',
+    errCheckin:'請填寫預計入住日期。',
+    errConsent:'請同意確認事項後再送出。',
+    errSubmit:'送出失敗，請確認網路連線後重試。',
+    sending:'正在送出，請稍候...'
+  },
+  ko: {
+    labelAddress:'주소', labelLicense:'허가번호', labelManager:'관리자',
+    pageTitle:'숙박자 명부 작성 안내',
+    pageDesc:'일본 「여관업법」에 따라 숙박하시는 모든 고객님의 정보를 등록하고 있습니다. 입력하신 정보는 법령에 따른 명부 보관 및 행정기관 제출 목적으로만 사용되며, 그 외의 목적으로는 사용하지 않습니다. 체크인 전까지 입력 후 제출해 주시기 바랍니다.',
+    sectionStay:'① 숙박 정보', labelCheckin:'체크인 예정일', labelCheckout:'체크아웃 예정일',
+    sectionGuests:'② 숙박자 정보 (전원)', btnAddGuest:'＋ 숙박자 추가',
+    sectionConsent:'③ 확인 사항',
+    consentText:'위 내용에 틀림이 없음을 확인하며, 입력한 정보가 여관업법에 따른 숙박자 명부로 사용되는 것에 동의합니다.',
+    btnSubmit:'제출하기', btnSubmitting:'제출 중...',
+    doneTitle:'제출이 완료되었습니다', doneDesc:'입력해 주셔서 감사합니다. 체크인 당일 스태프 일동 기다리고 있겠습니다.',
+    footerPrivacy:'입력하신 정보는 여관업법에 따른 숙박자 명부의 작성・보관 및 행정기관 제출 이외의 목적으로는 사용하지 않습니다.',
+    guestRep:'대표자 (숙박자1)', guestN:'숙박자',
+    fName:'성명', fKana:'후리가나 (선택)', fBirth:'생년월일', fNationality:'국적',
+    fOccupation:'직업', fPassportNo:'여권 번호', fPassportImg:'여권 사진',
+    fAddress:'주소', fPhone:'전화번호', fEmail:'이메일 (선택, 확인 연락용)',
+    fSameAsRep:'대표자와 같은 주소',
+    natJapan:'일본', natOther:'기타 (직접 입력)',
+    remove:'삭제',
+    passportHint:'일본 국적이 아니신 분은 여권 번호를 입력해 주세요 (사진 첨부는 선택 사항입니다).',
+    errRequired:'필수 항목을 입력해 주세요.',
+    errCheckin:'체크인 예정일을 입력해 주세요.',
+    errConsent:'확인 사항에 동의해 주세요.',
+    errSubmit:'제출에 실패했습니다. 네트워크 상태를 확인 후 다시 시도해 주세요.',
+    sending:'전송 중입니다. 잠시만 기다려 주세요...'
   }
 };
 let currentLang = 'ja';
@@ -478,6 +530,7 @@ $('guestForm').addEventListener('submit', async (ev)=>{
       checkout: $('checkout').value,
       guestCount: guests.length,
       hotel: 'SHOGUN HOUSE OSAKA',
+      lang: currentLang, // 'ja' | 'en' | 'zh-Hans' | 'zh-Hant' | 'ko' — used server-side to translate free-text fields to Japanese
       guests
     };
     const res = await fetch(SUBMIT_ENDPOINT, {

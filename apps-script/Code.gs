@@ -17,10 +17,26 @@
 const SHEET_NAME = '宿泊者名簿';
 const PASSPORT_FOLDER_NAME = 'パスポート画像';
 
+const JAPAN_NATIONALITY_LABEL = '日本';
+
+// フォームの言語コード → LanguageApp.translate() が受け付ける言語コード
+const TRANSLATE_SOURCE_LANG = {
+  ja: 'ja',
+  en: 'en',
+  'zh-Hans': 'zh-CN',
+  'zh-Hant': 'zh-TW',
+  ko: 'ko',
+};
+
 const HEADERS = [
-  'タイムスタンプ', 'チェックイン予定日', 'チェックアウト予定日', '宿泊人数',
-  '代表者区分', '氏名', 'フリガナ', '生年月日', '国籍', '旅券番号',
-  '住所', '電話番号', '職業', 'メールアドレス', 'パスポート画像URL',
+  'タイムスタンプ', 'チェックイン予定日', 'チェックアウト予定日', '宿泊人数', '入力言語',
+  '代表者区分', '氏名', 'フリガナ', '生年月日',
+  '国籍（原文）', '国籍（日本語訳）',
+  '旅券番号',
+  '住所（原文）', '住所（日本語訳）',
+  '電話番号',
+  '職業（原文）', '職業（日本語訳）',
+  'メールアドレス', 'パスポート画像URL',
 ];
 
 function doPost(e) {
@@ -31,6 +47,7 @@ function doPost(e) {
     const sheet = getOrCreateSheet_();
     const timestamp = new Date();
     const guests = data.guests || [];
+    const sourceLang = TRANSLATE_SOURCE_LANG[data.lang] || 'ja';
 
     guests.forEach((g) => {
       let passportUrl = '';
@@ -42,15 +59,21 @@ function doPost(e) {
         data.checkin || '',
         data.checkout || '',
         data.guestCount || guests.length,
+        data.lang || '',
         g.isRepresentative ? '代表者' : '同行者',
         g.name || '',
         g.kana || '',
         g.birthday || '',
         g.nationality || '',
+        // 国籍で「日本」を選んだ場合、フォーム側は入力言語に関わらず常に日本語表記
+        // 「日本」を送ってくるため、その場合は翻訳を呼ばずそのまま使う。
+        (g.nationality === JAPAN_NATIONALITY_LABEL) ? g.nationality : translateToJa_(g.nationality, sourceLang),
         g.passportNo || '',
         g.address || '',
+        translateToJa_(g.address, sourceLang),
         g.phone || '',
         g.occupation || '',
+        translateToJa_(g.occupation, sourceLang),
         g.email || '',
         passportUrl,
       ]);
@@ -61,6 +84,18 @@ function doPost(e) {
     return jsonOutput_({ result: 'error', message: String(err) });
   } finally {
     lock.releaseLock();
+  }
+}
+
+// 自由記述項目（国籍・住所・職業）を日本語に自動翻訳する。
+// 管理者はスプレッドシート上でこの翻訳セルをそのまま閲覧・修正できる。
+function translateToJa_(text, sourceLang) {
+  if (!text) return '';
+  if (sourceLang === 'ja') return text; // 既に日本語入力の場合は翻訳不要
+  try {
+    return LanguageApp.translate(text, sourceLang, 'ja');
+  } catch (err) {
+    return ''; // 翻訳に失敗しても原文は別列に残っているため空欄のまま許容する
   }
 }
 

@@ -167,7 +167,7 @@ const I18N = {
     doneTitle:'送信が完了しました', doneDesc:'ご入力ありがとうございました。当日のチェックインをスタッフ一同お待ちしております。',
     footerPrivacy:'入力情報は旅館業法に基づく宿泊者名簿の作成・保管、および行政機関への提出以外の目的には使用しません。',
     guestRep:'代表者（宿泊者1）', guestN:'宿泊者',
-    fName:'氏名', fKana:'フリガナ（任意）', fBirth:'生年月日', fNationality:'国籍',
+    fFamilyName:'姓', fGivenName:'名', fBirth:'生年月日', fNationality:'国籍',
     fOccupation:'職業', fPassportNo:'旅券番号', fPassportImg:'旅券（パスポート）画像',
     fAddress:'住所', fPhone:'電話番号', fEmail:'メールアドレス（任意・確認連絡用）',
     fSameAsRep:'代表者と同じ住所',
@@ -192,7 +192,7 @@ const I18N = {
     doneTitle:'Submitted successfully', doneDesc:'Thank you. We look forward to welcoming you at check-in.',
     footerPrivacy:'Information provided is used only to create/maintain the guest register required by law and for submission to government authorities.',
     guestRep:'Primary guest (Guest 1)', guestN:'Guest',
-    fName:'Full name', fKana:'Furigana (optional)', fBirth:'Date of birth', fNationality:'Nationality',
+    fFamilyName:'Family name (Surname)', fGivenName:'Given name (First name)', fBirth:'Date of birth', fNationality:'Nationality',
     fOccupation:'Occupation', fPassportNo:'Passport number', fPassportImg:'Passport photo',
     fAddress:'Home address', fPhone:'Phone number', fEmail:'Email (optional, for confirmation)',
     fSameAsRep:'Same address as primary guest',
@@ -217,7 +217,7 @@ const I18N = {
     doneTitle:'提交成功', doneDesc:'感谢您的填写。我们期待在入住当天为您服务。',
     footerPrivacy:'所填信息仅用于制作、保存法律规定的住宿者名单，以及提交给行政机关，不作其他用途。',
     guestRep:'代表人（住宿者1）', guestN:'住宿者',
-    fName:'姓名', fKana:'假名注音（选填）', fBirth:'出生日期', fNationality:'国籍',
+    fFamilyName:'姓', fGivenName:'名', fBirth:'出生日期', fNationality:'国籍',
     fOccupation:'职业', fPassportNo:'护照号码', fPassportImg:'护照照片',
     fAddress:'住址', fPhone:'电话号码', fEmail:'邮箱地址（选填，用于确认联系）',
     fSameAsRep:'与代表人地址相同',
@@ -242,7 +242,7 @@ const I18N = {
     doneTitle:'送出成功', doneDesc:'感謝您的填寫。我們期待在入住當天為您服務。',
     footerPrivacy:'所填資訊僅用於製作、保存法律規定的住宿者名冊，以及提交給行政機關，不作其他用途。',
     guestRep:'代表人（住宿者1）', guestN:'住宿者',
-    fName:'姓名', fKana:'假名注音（選填）', fBirth:'出生日期', fNationality:'國籍',
+    fFamilyName:'姓', fGivenName:'名', fBirth:'出生日期', fNationality:'國籍',
     fOccupation:'職業', fPassportNo:'護照號碼', fPassportImg:'護照照片',
     fAddress:'住址', fPhone:'電話號碼', fEmail:'電子郵件（選填，用於確認聯繫）',
     fSameAsRep:'與代表人地址相同',
@@ -267,7 +267,7 @@ const I18N = {
     doneTitle:'제출이 완료되었습니다', doneDesc:'입력해 주셔서 감사합니다. 체크인 당일 스태프 일동 기다리고 있겠습니다.',
     footerPrivacy:'입력하신 정보는 여관업법에 따른 숙박자 명부의 작성・보관 및 행정기관 제출 이외의 목적으로는 사용하지 않습니다.',
     guestRep:'대표자 (숙박자1)', guestN:'숙박자',
-    fName:'성명', fKana:'후리가나 (선택)', fBirth:'생년월일', fNationality:'국적',
+    fFamilyName:'성', fGivenName:'이름', fBirth:'생년월일', fNationality:'국적',
     fOccupation:'직업', fPassportNo:'여권 번호', fPassportImg:'여권 사진',
     fAddress:'주소', fPhone:'전화번호', fEmail:'이메일 (선택, 확인 연락용)',
     fSameAsRep:'대표자와 같은 주소',
@@ -289,7 +289,10 @@ function applyI18n(){
     const key = el.getAttribute('data-i18n');
     if(dict[key]) el.textContent = dict[key];
   });
-  document.querySelectorAll('.guest-card').forEach(card=>renderGuestCardLabels(card));
+  document.querySelectorAll('.guest-card').forEach(card=>{
+    renderGuestCardLabels(card);
+    applyNationalityDefaultForLang(card, currentLang);
+  });
   document.querySelectorAll('.lang-btn').forEach(b=>b.classList.toggle('active', b.dataset.lang===currentLang));
 }
 document.querySelectorAll('.lang-btn').forEach(btn=>{
@@ -314,12 +317,12 @@ function createGuestCard(isRep){
     </div>
     <div class="grid">
       <div class="field">
-        <label data-role="l-name">${dict.fName}<span class="req">*</span></label>
-        <input type="text" data-f="name" required>
+        <label data-role="l-familyname">${dict.fFamilyName}<span class="req">*</span></label>
+        <input type="text" data-f="familyName" required>
       </div>
       <div class="field">
-        <label data-role="l-kana">${dict.fKana}</label>
-        <input type="text" data-f="kana">
+        <label data-role="l-givenname">${dict.fGivenName}<span class="req">*</span></label>
+        <input type="text" data-f="givenName" required>
       </div>
       <div class="field">
         <label data-role="l-birth">${dict.fBirth}</label>
@@ -372,21 +375,14 @@ function createGuestCard(isRep){
     </div>`}
   `;
 
-  // nationality toggle
+  // nationality toggle: ユーザーが手動で国籍を変更したら natTouched を立てて、
+  // 以後は言語切り替えによる既定値の上書きをしない。
   const natSel = wrap.querySelector('[data-f=nationalitySel]');
-  const natOther = wrap.querySelector('[data-f=nationalityOther]');
-  const passNoField = wrap.querySelector('[data-role=passportNoField]');
-  const passImgField = wrap.querySelector('[data-role=passportImgField]');
-  const passNoInput = wrap.querySelector('[data-f=passportNo]');
-  function updateNatUI(){
-    const isJP = natSel.value === '__JP__';
-    natOther.style.display = isJP ? 'none' : 'block';
-    passNoField.style.display = isJP ? 'none' : 'block';
-    passImgField.style.display = isJP ? 'none' : 'block';
-    passNoInput.required = !isJP;
-  }
-  natSel.addEventListener('change', updateNatUI);
-  updateNatUI();
+  natSel.addEventListener('change', () => {
+    wrap.dataset.natTouched = '1';
+    refreshNationalityUI(wrap);
+  });
+  applyNationalityDefaultForLang(wrap, currentLang);
 
   // same-address toggle (non-rep only)
   if(!isRep){
@@ -405,11 +401,34 @@ function createGuestCard(isRep){
   return wrap;
 }
 
+// 国籍セレクトの状態に応じて、その他国籍欄・旅券番号・パスポート画像欄の表示を切り替える
+function refreshNationalityUI(card){
+  const natSel = card.querySelector('[data-f=nationalitySel]');
+  const natOther = card.querySelector('[data-f=nationalityOther]');
+  const passNoField = card.querySelector('[data-role=passportNoField]');
+  const passImgField = card.querySelector('[data-role=passportImgField]');
+  const passNoInput = card.querySelector('[data-f=passportNo]');
+  const isJP = natSel.value === '__JP__';
+  natOther.style.display = isJP ? 'none' : 'block';
+  passNoField.style.display = isJP ? 'none' : 'block';
+  passImgField.style.display = isJP ? 'none' : 'block';
+  passNoInput.required = !isJP;
+}
+
+// 日本語以外の言語では外国籍の入力者が多いため、国籍・旅券番号・パスポート画像欄を
+// 既定で表示しておく（ユーザーが一度でも手動で国籍を変更したカードは上書きしない）。
+function applyNationalityDefaultForLang(card, lang){
+  if(card.dataset.natTouched === '1') return;
+  const natSel = card.querySelector('[data-f=nationalitySel]');
+  natSel.value = (lang === 'ja') ? '__JP__' : '__OTHER__';
+  refreshNationalityUI(card);
+}
+
 function renderGuestCardLabels(card){
   const dict = I18N[currentLang];
   const set = (role, text) => { const el = card.querySelector(`[data-role=${role}]`); if(el) el.textContent = text; };
-  set('l-name', dict.fName + ' *');
-  set('l-kana', dict.fKana);
+  set('l-familyname', dict.fFamilyName + ' *');
+  set('l-givenname', dict.fGivenName + ' *');
   set('l-birth', dict.fBirth);
   set('l-nat', dict.fNationality + ' *');
   set('l-occ', dict.fOccupation + ' *');
@@ -515,8 +534,7 @@ async function collectGuests(){
     }
     guests.push({
       isRepresentative: isRep,
-      name: get('name'),
-      kana: get('kana'),
+      name: [get('familyName'), get('givenName')].filter(Boolean).join(' '),
       birthday: get('birth'),
       nationality,
       occupation: get('occupation'),

@@ -1,6 +1,6 @@
-# SHOGUN HOUSE OSAKA 宿泊者名簿フォーム セットアップ手順
+# 宿泊者名簿フォーム セットアップ手順
 
-ゲストがチェックイン前にスマホ等で入力し、送信するとGoogleドライブ「天王寺区味原町」フォルダ内のスプレッドシートに自動で記録される仕組みです。
+ゲストがチェックイン前にスマホ等で入力し、送信するとGoogleドライブ内のスプレッドシートに自動で記録される仕組みです。複数物件（SHOGUN HOUSE OSAKA、ICHZA KYOTOなど）に対応しており、1つのCloudflare Worker・1つのApps Scriptデプロイを複数の宿で共有します。
 
 構成:
 
@@ -82,9 +82,35 @@ Cloudflareの現行UIでは「Pages」ではなく統合された「Workers」�
 
 ---
 
+## 6. 物件を追加する（2軒目以降）
+
+既存のCloudflare Worker・Apps Scriptデプロイをそのまま使い回せる。新しいCloudflareプロジェクトやドメイン購入は不要（サブドメインを使う場合）。
+
+1. **Googleドライブにスプレッドシートを用意**（手順1と同様）。新しい宿泊者名簿スプレッドシートを作成し、IDをURLから控える。
+2. **`apps-script/Code.gs` の `PROPERTIES` に1行追加**:
+   ```js
+   const PROPERTIES = {
+     'shogun-house-osaka': { hotelName: 'SHOGUN HOUSE OSAKA', spreadsheetId: '...' },
+     'ichiza-kyoto':        { hotelName: 'ICHZA KYOTO',        spreadsheetId: '新しいID' },
+   };
+   ```
+   Apps Scriptエディタでこのファイルを丸ごと貼り替えて保存し、[デプロイを管理] → 既存デプロイを編集 → 「新しいバージョン」でデプロイする（URLは変わらないので、Cloudflare側の`GAS_WEBAPP_URL`は変更不要）。
+3. **`guest-form/` に新しい物件のフォルダを追加**（例: `guest-form/ichiza-kyoto/index.html`）。既存のフォームをコピーし、宿名・住所・許可番号・`payload.hotel`・`payload.property`（`PROPERTIES`のキーと一致させる）を書き換える。
+4. **`worker/index.js` の `HOST_PROPERTY_PREFIX` に、その物件用サブドメインとフォルダ名を追加**:
+   ```js
+   const HOST_PROPERTY_PREFIX = {
+     'ichiza-kyoto.shogunhouse-osaka.com': 'ichiza-kyoto',
+   };
+   ```
+5. コミット・pushして`main`に反映 → Cloudflareが自動で再デプロイ。
+6. Cloudflareダッシュボードのプロジェクト → [Domains] タブで、そのサブドメイン（例: `ichiza-kyoto.shogunhouse-osaka.com`）を追加する。
+
+---
+
 ## ファイル構成
 
-- `guest-form/index.html` … ゲスト向け入力フォーム本体（日本語／英語／簡体字中国語／繁体字中国語／韓国語の5言語対応）
-- `worker/index.js` … Cloudflare Worker（`/api/submit` を受けてApps Scriptへ中継、それ以外は静的ファイルを配信）
+- `guest-form/index.html` … SHOGUN HOUSE OSAKA用フォーム（日本語／英語／簡体字中国語／繁体字中国語／韓国語の5言語対応）
+- `guest-form/ichiza-kyoto/index.html` … ICHZA KYOTO用フォーム（同上）
+- `worker/index.js` … Cloudflare Worker（ホスト名で物件ごとのフォームを振り分け、`/api/submit` はApps Scriptへ中継）
 - `wrangler.jsonc` … Cloudflare Workersのデプロイ設定
-- `apps-script/Code.gs` … スプレッドシートへの書き込み・パスポート画像保存スクリプト
+- `apps-script/Code.gs` … 物件ごとのスプレッドシートへの書き込み・パスポート画像保存スクリプト（`PROPERTIES` で物件を管理）

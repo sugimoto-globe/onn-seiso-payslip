@@ -1,14 +1,21 @@
-// Cloudflare Worker (with static assets) serving the SHOGUN HOUSE OSAKA
-// guest registration form.
+// Cloudflare Worker serving the guest registration forms for every property
+// under guest-form/ (currently SHOGUN HOUSE OSAKA at the root, ICHZA KYOTO
+// under guest-form/ichiza-kyoto/). Which property's static files are served
+// is chosen by request hostname — see HOST_PROPERTY_PREFIX below. Adding a
+// new property later means: add its folder under guest-form/, add one line
+// here, and add its custom domain in the Cloudflare dashboard.
 //
-// Static files under guest-form/ (index.html, etc.) are served automatically
-// by Cloudflare's asset handling before this fetch handler ever runs — this
-// script only needs to handle the one dynamic route: /api/submit.
+// `assets.run_worker_first: true` in wrangler.jsonc makes every request hit
+// this fetch handler first (instead of Cloudflare's default "serve a
+// matching static file automatically"), so the hostname-based rewrite below
+// can run before any static file is served.
 //
-// Guest browsers only ever talk to this same-origin endpoint. The relay to
-// Google Apps Script happens server-side here, on Cloudflare's network, so
-// guests in regions that block Google domains (e.g. mainland China) can
-// still submit the form.
+// Guest browsers only ever talk to the same-origin /api/submit endpoint.
+// The relay to Google Apps Script happens server-side here, on Cloudflare's
+// network, so guests in regions that block Google domains (e.g. mainland
+// China) can still submit the form. All properties share one Apps Script
+// deployment (one GAS_WEBAPP_URL secret) — the JSON body's `property` field
+// tells Apps Script which spreadsheet to write to.
 //
 // Requires a secret named GAS_WEBAPP_URL, set via:
 //   npx wrangler secret put GAS_WEBAPP_URL
@@ -20,6 +27,13 @@
 // so this only needs headroom for a few compressed images per submission.
 const MAX_BODY_BYTES = 20 * 1024 * 1024;
 
+// hostname -> guest-form/ subfolder to serve at that hostname's "/".
+// A hostname not listed here (e.g. the primary domain, *.workers.dev) serves
+// guest-form/ itself, i.e. the SHOGUN HOUSE OSAKA form.
+const HOST_PROPERTY_PREFIX = {
+  'ichiza-kyoto.shogunhouse-osaka.com': 'ichiza-kyoto',
+};
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -27,11 +41,19 @@ export default {
     if (url.pathname === '/api/submit') {
       if (request.method === 'POST') return handleSubmit(request, env);
       if (request.method === 'GET') {
-        return jsonResponse({ result: 'ok', message: 'SHOGUN HOUSE OSAKA guest form relay is running' });
+        return jsonResponse({ result: 'ok', message: 'Guest form relay is running' });
       }
+      return new Response('Not found', { status: 404 });
     }
 
-    return new Response('Not found', { status: 404 });
+    const prefix = HOST_PROPERTY_PREFIX[url.hostname];
+    if (prefix) {
+      const assetUrl = new URL(request.url);
+      assetUrl.pathname = assetUrl.pathname === '/' ? `/${prefix}/` : `/${prefix}${assetUrl.pathname}`;
+      return env.ASSETS.fetch(new Request(assetUrl, request));
+    }
+
+    return env.ASSETS.fetch(request);
   },
 };
 

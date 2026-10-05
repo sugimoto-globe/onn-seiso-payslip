@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SHOGUN HOUSE OSAKA｜宿泊者名簿</title>
+<title>ICHZA KYOTO｜宿泊者名簿</title>
 <style>
   :root{
     --bg:#f5f6f8; --panel:#ffffff; --border:#dde1e6; --text:#1f2430; --muted:#6b7280;
@@ -82,10 +82,10 @@
   </div>
 
   <div class="hotel-header">
-    <div class="name">SHOGUN HOUSE OSAKA</div>
+    <div class="name">ICHZA KYOTO</div>
     <div class="meta">
-      <div data-i18n="hotelAddressLabel"><b data-i18n="labelAddress">住所</b>：大阪市西成区鶴見橋2-8-29</div>
-      <div data-i18n="hotelLicenseLabel"><b data-i18n="labelLicense">許可番号</b>：大阪市指令 大保環第26-2091号</div>
+      <div data-i18n="hotelAddressLabel"><b data-i18n="labelAddress">住所</b>：京都市下京区木屋町通七条下る若宮町472-2</div>
+      <div data-i18n="hotelLicenseLabel"><b data-i18n="labelLicense">許可番号</b>：京都市指令 保保医 第1538号</div>
       <div data-i18n="hotelManagerLabel"><b data-i18n="labelManager">管理者</b>：株式会社グローブ　代表取締役　杉本拓巳</div>
     </div>
   </div>
@@ -137,7 +137,7 @@
   </div>
 
   <div class="footer-note">
-    SHOGUN HOUSE OSAKA / 株式会社グローブ<br>
+    ICHZA KYOTO / 株式会社グローブ<br>
     <span data-i18n="footerPrivacy">入力情報は旅館業法に基づく宿泊者名簿の作成・保管、および行政機関への提出以外の目的には使用しません。</span>
   </div>
 </div>
@@ -579,8 +579,8 @@ $('guestForm').addEventListener('submit', async (ev)=>{
       checkin: $('checkin').value,
       checkout: $('checkout').value,
       guestCount: guests.length,
-      hotel: 'SHOGUN HOUSE OSAKA',
-      property: 'shogun-house-osaka', // Apps Script側で書き込み先スプレッドシートを振り分けるID
+      hotel: 'ICHZA KYOTO',
+      property: 'ichiza-kyoto', // Apps Script側で書き込み先スプレッドシートを振り分けるID
       lang: currentLang, // 'ja' | 'en' | 'zh-Hans' | 'zh-Hant' | 'ko' — used server-side to translate free-text fields to Japanese
       guests
     };

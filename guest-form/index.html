@@ -40,6 +40,7 @@
     font-size:14px; background:#fff; color:var(--text); font-family:inherit;
   }
   input[type=file]{width:100%; font-size:12.5px;}
+  .passport-img-btn{width:100%; text-align:center;}
   textarea{min-height:60px; resize:vertical;}
   .field{margin-bottom:10px;}
   .hint{font-size:11px; color:var(--muted); margin-top:4px; line-height:1.6;}
@@ -169,6 +170,7 @@ const I18N = {
     guestRep:'代表者（宿泊者1）', guestN:'宿泊者',
     fFamilyName:'姓', fGivenName:'名', fBirth:'生年月日', fNationality:'国籍',
     fOccupation:'職業', fPassportNo:'旅券番号', fPassportImg:'旅券（パスポート）画像',
+    passportImgBtn:'📷 写真を撮る・選ぶ',
     fAddress:'住所', fPhone:'電話番号', fEmail:'メールアドレス（任意・確認連絡用）',
     fSameAsRep:'代表者と同じ住所',
     natJapan:'日本', natOther:'その他（入力）',
@@ -194,6 +196,7 @@ const I18N = {
     guestRep:'Primary guest (Guest 1)', guestN:'Guest',
     fFamilyName:'Family name (Surname)', fGivenName:'Given name (First name)', fBirth:'Date of birth', fNationality:'Nationality',
     fOccupation:'Occupation', fPassportNo:'Passport number', fPassportImg:'Passport photo',
+    passportImgBtn:'📷 Take / choose a photo',
     fAddress:'Home address', fPhone:'Phone number', fEmail:'Email (optional, for confirmation)',
     fSameAsRep:'Same address as primary guest',
     natJapan:'Japan', natOther:'Other (please type)',
@@ -219,6 +222,7 @@ const I18N = {
     guestRep:'代表人（住宿者1）', guestN:'住宿者',
     fFamilyName:'姓', fGivenName:'名', fBirth:'出生日期', fNationality:'国籍',
     fOccupation:'职业', fPassportNo:'护照号码', fPassportImg:'护照照片',
+    passportImgBtn:'📷 拍照或选择照片',
     fAddress:'住址', fPhone:'电话号码', fEmail:'邮箱地址（选填，用于确认联系）',
     fSameAsRep:'与代表人地址相同',
     natJapan:'日本', natOther:'其他（请输入）',
@@ -244,6 +248,7 @@ const I18N = {
     guestRep:'代表人（住宿者1）', guestN:'住宿者',
     fFamilyName:'姓', fGivenName:'名', fBirth:'出生日期', fNationality:'國籍',
     fOccupation:'職業', fPassportNo:'護照號碼', fPassportImg:'護照照片',
+    passportImgBtn:'📷 拍照或選擇照片',
     fAddress:'住址', fPhone:'電話號碼', fEmail:'電子郵件（選填，用於確認聯繫）',
     fSameAsRep:'與代表人地址相同',
     natJapan:'日本', natOther:'其他（請輸入）',
@@ -269,6 +274,7 @@ const I18N = {
     guestRep:'대표자 (숙박자1)', guestN:'숙박자',
     fFamilyName:'성', fGivenName:'이름', fBirth:'생년월일', fNationality:'국적',
     fOccupation:'직업', fPassportNo:'여권 번호', fPassportImg:'여권 사진',
+    passportImgBtn:'📷 사진 촬영/선택',
     fAddress:'주소', fPhone:'전화번호', fEmail:'이메일 (선택, 확인 연락용)',
     fSameAsRep:'대표자와 같은 주소',
     natJapan:'일본', natOther:'기타 (직접 입력)',
@@ -347,7 +353,8 @@ function createGuestCard(isRep){
     </div>
     <div class="field" data-role="passportImgField" style="display:none;">
       <label data-role="l-passimg">${dict.fPassportImg}</label>
-      <input type="file" accept="image/*" capture="environment" data-f="passportImg">
+      <input type="file" accept="image/*" capture="environment" data-f="passportImg" style="display:none;">
+      <button type="button" class="btn-secondary passport-img-btn" data-role="passportImgBtn"></button>
       <div class="hint" data-role="passporthint">${dict.passportHint}</div>
     </div>
     ${isRep ? `
@@ -398,7 +405,24 @@ function createGuestCard(isRep){
     removeBtn.addEventListener('click', ()=>{ wrap.remove(); renumberGuests(); });
   }
 
+  // パスポート画像: ブラウザ標準の「ファイルを選択」ボタンはOSの言語設定に従ってしまい
+  // ページの表示言語と合わないことがあるため、標準ボタンは隠して自前の多言語ボタンから
+  // クリックを委譲する（capture="environment" はそのままなのでスマホではカメラが開く）。
+  const passportImgInput = wrap.querySelector('[data-f=passportImg]');
+  const passportImgBtn = wrap.querySelector('[data-role=passportImgBtn]');
+  passportImgBtn.addEventListener('click', () => passportImgInput.click());
+  passportImgInput.addEventListener('change', () => updatePassportImgBtnLabel(wrap));
+  updatePassportImgBtnLabel(wrap);
+
   return wrap;
+}
+
+function updatePassportImgBtnLabel(card){
+  const dict = I18N[currentLang];
+  const input = card.querySelector('[data-f=passportImg]');
+  const btn = card.querySelector('[data-role=passportImgBtn]');
+  if(!btn) return;
+  btn.textContent = (input.files && input.files[0]) ? ('✓ ' + input.files[0].name) : dict.passportImgBtn;
 }
 
 // 国籍セレクトの状態に応じて、その他国籍欄・旅券番号・パスポート画像欄の表示を切り替える
@@ -435,6 +459,7 @@ function renderGuestCardLabels(card){
   set('l-passno', dict.fPassportNo + ' *');
   set('l-passimg', dict.fPassportImg);
   set('passporthint', dict.passportHint);
+  updatePassportImgBtnLabel(card);
   set('l-addr', dict.fAddress + ' *');
   set('l-addr2', dict.fAddress);
   set('l-phone', dict.fPhone + ' *');

@@ -154,6 +154,19 @@ const SUBMIT_ENDPOINT = '/api/submit';
 
 const $ = (id) => document.getElementById(id);
 
+// ブラウザ標準の入力エラー吹き出し（「このフィールドを入力してください」等）は
+// 端末のOS/ブラウザの言語設定に従ってしまい、ページの表示言語と合わないため、
+// setCustomValidity() で選択中の言語のメッセージに差し替える。
+function wireValidationMessage(el){
+  if(!el) return;
+  el.addEventListener('invalid', () => {
+    const dict = I18N[currentLang];
+    el.setCustomValidity(el.type === 'checkbox' ? dict.checkboxRequiredMsg : dict.fieldRequiredMsg);
+  });
+  el.addEventListener('input', () => el.setCustomValidity(''));
+  el.addEventListener('change', () => el.setCustomValidity(''));
+}
+
 /* ---------------- i18n ---------------- */
 const I18N = {
   ja: {
@@ -177,6 +190,7 @@ const I18N = {
     remove:'削除',
     passportHint:'外国籍の方は旅券番号のご入力にご協力ください（画像添付は任意です）',
     errRequired:'必須項目が未入力です。ご確認ください。',
+    fieldRequiredMsg:'この項目を入力してください。', checkboxRequiredMsg:'チェックを入れてください。',
     errCheckin:'チェックイン予定日を入力してください。',
     errConsent:'確認事項へのご同意が必要です。',
     errSubmit:'送信に失敗しました。通信環境をご確認のうえ、再度お試しください。',
@@ -203,6 +217,7 @@ const I18N = {
     remove:'Remove',
     passportHint:'If you are not a Japanese national, please provide your passport number (photo upload is optional).',
     errRequired:'Please fill in all required fields.',
+    fieldRequiredMsg:'Please fill out this field.', checkboxRequiredMsg:'Please check this box.',
     errCheckin:'Please enter your check-in date.',
     errConsent:'Please agree to the confirmation statement.',
     errSubmit:'Submission failed. Please check your connection and try again.',
@@ -229,6 +244,7 @@ const I18N = {
     remove:'删除',
     passportHint:'非日本籍人士请填写护照号码（上传护照照片为选填项）。',
     errRequired:'请填写所有必填项目。',
+    fieldRequiredMsg:'请填写此字段。', checkboxRequiredMsg:'请勾选此项。',
     errCheckin:'请填写预计入住日期。',
     errConsent:'请同意确认事项后再提交。',
     errSubmit:'提交失败，请检查网络连接后重试。',
@@ -255,6 +271,7 @@ const I18N = {
     remove:'刪除',
     passportHint:'非日本籍人士請填寫護照號碼（上傳護照照片為選填項目）。',
     errRequired:'請填寫所有必填項目。',
+    fieldRequiredMsg:'請填寫此欄位。', checkboxRequiredMsg:'請勾選此項目。',
     errCheckin:'請填寫預計入住日期。',
     errConsent:'請同意確認事項後再送出。',
     errSubmit:'送出失敗，請確認網路連線後重試。',
@@ -281,6 +298,7 @@ const I18N = {
     remove:'삭제',
     passportHint:'일본 국적이 아니신 분은 여권 번호를 입력해 주세요 (사진 첨부는 선택 사항입니다).',
     errRequired:'필수 항목을 입력해 주세요.',
+    fieldRequiredMsg:'이 항목을 입력해 주세요.', checkboxRequiredMsg:'이 항목에 체크해 주세요.',
     errCheckin:'체크인 예정일을 입력해 주세요.',
     errConsent:'확인 사항에 동의해 주세요.',
     errSubmit:'제출에 실패했습니다. 네트워크 상태를 확인 후 다시 시도해 주세요.',
@@ -414,6 +432,8 @@ function createGuestCard(isRep){
   passportImgInput.addEventListener('change', () => updatePassportImgBtnLabel(wrap));
   updatePassportImgBtnLabel(wrap);
 
+  wrap.querySelectorAll('input, select').forEach(wireValidationMessage);
+
   return wrap;
 }
 
@@ -491,6 +511,9 @@ function addGuest(isRep){
 }
 $('addGuestBtn').addEventListener('click', ()=>addGuest(false));
 addGuest(true); // 代表者は最初から1枚表示
+
+wireValidationMessage($('checkin'));
+wireValidationMessage($('consent'));
 
 /* ---------------- Submit ---------------- */
 function fileToBase64(file){

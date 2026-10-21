@@ -34,7 +34,6 @@ const PROPERTIES = {
 const DEFAULT_PROPERTY_ID = 'shogun-house-osaka'; // property未指定の古いフォームとの互換用
 
 const SHEET_NAME = '宿泊者名簿';
-const PASSPORT_FOLDER_NAME = 'パスポート画像';
 
 const JAPAN_NATIONALITY_LABEL = '日本';
 
@@ -156,12 +155,15 @@ function savePassportImage_(property, base64Data, fileName, checkinDate, guestNa
 }
 
 function getOrCreatePassportFolder_(property) {
+  // 物件名を含めることで、複数物件のパスポート画像フォルダが同じ名前になって
+  // Googleドライブ上で見分けがつかなくなるのを防ぐ。
+  const folderName = `パスポート画像（${PROPERTIES[property].hotelName}）`;
   const ssFile = DriveApp.getFileById(PROPERTIES[property].spreadsheetId);
   const parents = ssFile.getParents();
   const parentFolder = parents.hasNext() ? parents.next() : DriveApp.getRootFolder();
-  const existing = parentFolder.getFoldersByName(PASSPORT_FOLDER_NAME);
+  const existing = parentFolder.getFoldersByName(folderName);
   if (existing.hasNext()) return existing.next();
-  return parentFolder.createFolder(PASSPORT_FOLDER_NAME);
+  return parentFolder.createFolder(folderName);
 }
 
 function jsonOutput_(obj) {

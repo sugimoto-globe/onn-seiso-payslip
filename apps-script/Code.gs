@@ -183,21 +183,31 @@ function insertPassportImageThumbnail_(sheet, row, blob) {
 // backfillPassportImageThumbnails を選び、「実行」すればよい。
 function backfillPassportImageThumbnails() {
   Object.keys(PROPERTIES).forEach((property) => {
+    const hotelName = PROPERTIES[property].hotelName;
     const ss = SpreadsheetApp.openById(PROPERTIES[property].spreadsheetId);
     const sheet = ss.getSheetByName(SHEET_NAME);
-    if (!sheet) return;
+    if (!sheet) {
+      Logger.log(`[${hotelName}] シート「${SHEET_NAME}」が見つかりません`);
+      return;
+    }
     const lastRow = sheet.getLastRow();
+    let embedded = 0;
+    let skippedNoUrl = 0;
+    let failed = 0;
     for (let row = 2; row <= lastRow; row++) {
       const url = sheet.getRange(row, PASSPORT_IMAGE_COLUMN).getDisplayValue();
       const fileId = extractDriveFileId_(url);
-      if (!fileId) continue;
+      if (!fileId) { skippedNoUrl++; continue; }
       try {
         const blob = DriveApp.getFileById(fileId).getBlob();
         insertPassportImageThumbnail_(sheet, row, blob);
+        embedded++;
       } catch (err) {
-        // ファイルが見つからない・アクセスできない行はスキップする
+        failed++;
+        Logger.log(`[${hotelName}] ${row}行目で失敗: ${err}`);
       }
     }
+    Logger.log(`[${hotelName}] 完了: 対象${lastRow - 1}行 / 埋め込み${embedded}件 / URLなし${skippedNoUrl}件 / 失敗${failed}件`);
   });
 }
 

@@ -17,6 +17,9 @@
  *     （フォーム側から直接このURLを呼び出すことはない）。
  *     全物件のフォームが同じ GAS_WEBAPP_URL を共有し、フォームが送ってくる
  *     property（物件ID）で書き込み先スプレッドシートを振り分ける。
+ *  5. 過去に送信済みで、まだスプレッドシートに写真が埋め込まれていない分を
+ *     反映したい場合は、Apps Scriptエディタ上部の関数選択ドロップダウンで
+ *     backfillPassportImageThumbnails を選び、実行ボタンを押す（一度だけでよい）。
  */
 
 const PROPERTIES = {
@@ -56,6 +59,7 @@ const HEADERS = [
   '職業（原文）', '職業（日本語訳）',
   'メールアドレス', 'パスポート画像URL',
 ];
+const PASSPORT_IMAGE_COLUMN = HEADERS.length; // 常にパスポート画像URL列（末尾）と一致させる
 
 function doPost(e) {
   const lock = LockService.getScriptLock();
@@ -70,8 +74,10 @@ function doPost(e) {
 
     guests.forEach((g) => {
       let passportUrl = '';
+      let passportBlob = null;
       if (g.passportImageBase64) {
-        passportUrl = savePassportImage_(property, g.passportImageBase64, g.passportImageName, data.checkin, g.name);
+        passportBlob = base64ToBlob_(g.passportImageBase64, g.passportImageName, data.checkin, g.name);
+        passportUrl = savePassportImageToDrive_(property, passportBlob);
       }
       sheet.appendRow([
         timestamp,
@@ -96,6 +102,12 @@ function doPost(e) {
         g.email || '',
         passportUrl,
       ]);
+      // Driveのリンクを開かなくても、スプレッドシート上でそのまま写真を確認できるように
+      // セルへサムネイルを埋め込む（埋め込みに失敗してもDriveへの保存・URL記録は既に
+      // 完了しているため、処理全体は失敗させない）。
+      if (passportBlob) {
+        insertPassportImageThumbnail_(sheet, sheet.getLastRow(), passportBlob);
+      }
     });
 
     return jsonOutput_({ result: 'success', saved: guests.length, property });
@@ -139,19 +151,59 @@ function getOrCreateSheet_(property) {
   return sheet;
 }
 
-function savePassportImage_(property, base64Data, fileName, checkinDate, guestName) {
+function base64ToBlob_(base64Data, fileName, checkinDate, guestName) {
+  const mimeMatch = base64Data.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,/);
+  const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+  const pureBase64 = base64Data.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, '');
+  const safeName = `${checkinDate || 'unknown'}_${guestName || 'guest'}_${fileName || 'passport.jpg'}`;
+  return Utilities.newBlob(Utilities.base64Decode(pureBase64), mimeType, safeName);
+}
+
+function savePassportImageToDrive_(property, blob) {
   try {
-    const mimeMatch = base64Data.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,/);
-    const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
-    const pureBase64 = base64Data.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, '');
-    const safeName = `${checkinDate || 'unknown'}_${guestName || 'guest'}_${fileName || 'passport.jpg'}`;
-    const blob = Utilities.newBlob(Utilities.base64Decode(pureBase64), mimeType, safeName);
     const folder = getOrCreatePassportFolder_(property);
     const file = folder.createFile(blob);
     return file.getUrl();
   } catch (err) {
     return '';
   }
+}
+
+function insertPassportImageThumbnail_(sheet, row, blob) {
+  try {
+    const img = sheet.insertImage(blob, PASSPORT_IMAGE_COLUMN, row);
+    img.setWidth(120).setHeight(90);
+  } catch (err) {
+    // 埋め込みに失敗した行はスキップする（Drive上のファイル自体は残っている）
+  }
+}
+
+// 過去にDriveへ保存済みだがスプレッドシートに画像が埋め込まれていない分を、
+// 一度だけ手動で反映するための関数。Apps Scriptエディタの関数選択で
+// backfillPassportImageThumbnails を選び、「実行」すればよい。
+function backfillPassportImageThumbnails() {
+  Object.keys(PROPERTIES).forEach((property) => {
+    const ss = SpreadsheetApp.openById(PROPERTIES[property].spreadsheetId);
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    if (!sheet) return;
+    const lastRow = sheet.getLastRow();
+    for (let row = 2; row <= lastRow; row++) {
+      const url = sheet.getRange(row, PASSPORT_IMAGE_COLUMN).getDisplayValue();
+      const fileId = extractDriveFileId_(url);
+      if (!fileId) continue;
+      try {
+        const blob = DriveApp.getFileById(fileId).getBlob();
+        insertPassportImageThumbnail_(sheet, row, blob);
+      } catch (err) {
+        // ファイルが見つからない・アクセスできない行はスキップする
+      }
+    }
+  });
+}
+
+function extractDriveFileId_(url) {
+  const m = String(url || '').match(/\/d\/([a-zA-Z0-9_-]+)/);
+  return m ? m[1] : null;
 }
 
 function getOrCreatePassportFolder_(property) {

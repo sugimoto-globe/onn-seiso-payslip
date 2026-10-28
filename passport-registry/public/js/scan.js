@@ -2,8 +2,8 @@
  * パスポート写真の読み取り（すべてゲストの端末内で完結する）。
  *   1. 下部の MRZ（2行の英数字）を OCR（Tesseract.js）で読み、mrz.js で解析・検算
  *   2. 顔写真の位置を検出（face-api の Tiny Face Detector）して切り抜く
- * 元の画像はこのファイルの中だけで扱い、サーバーには送らない。
- * 呼び出し側には「解析結果」「顔の切り抜き」だけを返す。
+ * 撮影した画像はこのファイルの中だけで扱う。呼び出し側に返すのは「解析結果」「顔の切り抜き」と、
+ * 設定（keepOriginal）で許可した場合のみ、旅券の写しとして保存するための圧縮コピーだけ。
  */
 (function (root) {
   'use strict';
@@ -220,10 +220,10 @@
     return dataUrl;
   }
 
-  /** （法令上の確認が取れるまで）原本画像を保管する場合のみ使う圧縮コピー */
-  function compressOriginal(bitmap) {
-    const canvas = render(bitmap, { rot: 0, width: 1600 });
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
+  /** 旅券の写しとして保存する圧縮コピー（読み取りで分かった向きに直し、文字が読める解像度を保つ） */
+  function compressOriginal(bitmap, rot) {
+    const canvas = render(bitmap, { rot, width: 2000 });
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
     release(canvas);
     return dataUrl;
   }
@@ -258,7 +258,7 @@
         result.face = null;
       }
 
-      if (opts.keepOriginal) result.original = compressOriginal(bitmap);
+      if (opts.keepOriginal) result.original = compressOriginal(bitmap, rot);
     } catch (e) {
       result.error = result.error || 'image';
     } finally {

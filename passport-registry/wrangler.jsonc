@@ -1,0 +1,14 @@
+{
+  // ICHZA KYOTO 宿泊者名簿（パスポート自動読み取り版）。リポジトリ内の他のフォーム
+  // （リポジトリ直下の wrangler.jsonc / guest-form/）とは独立した、別の Worker としてデプロイする。
+  // Cloudflare の Workers Builds では「Root directory」を passport-registry にして接続する。
+  "name": "ichiza-passport-registry",
+  "compatibility_date": "2025-03-01",
+  "main": "worker/index.js",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    // /api/* だけを Worker で処理し、それ以外（画面・OCR用ファイル）は静的配信に任せる
+    "run_worker_first": ["/api/*"]
+  }
+}

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ICHZA KYOTO｜Guest Registration</title>
+<style>
+  :root{
+    --bg:#f4f5f7; --panel:#fff; --border:#d9dde3; --text:#1d2330; --muted:#667085;
+    --accent:#2b3a55; --accent2:#3b5b92; --danger:#c0392b; --ok:#1e824c; --warn:#fff6d1; --warn-border:#e2b400;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--bg); color:var(--text); font-size:15px; line-height:1.6;
+    font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic","Noto Sans JP","Noto Sans SC","Noto Sans KR",system-ui,sans-serif;}
+  .wrap{max-width:560px; margin:0 auto; padding:16px 16px 80px;}
+  .lang-bar{display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; margin-bottom:10px;}
+  .lang-btn{padding:6px 10px; font-size:12px; border:1px solid var(--border); background:#fff; border-radius:6px; font-weight:500;}
+  .lang-btn.active{background:var(--accent2); color:#fff; border-color:var(--accent2);}
+  .hotel{background:var(--accent); color:#fff; border-radius:10px; padding:14px 18px; margin-bottom:14px;}
+  .hotel .name{font-size:19px; font-weight:700; letter-spacing:.04em;}
+  .hotel .addr{font-size:12px; color:#d9e0ee; margin-top:2px;}
+  h1{font-size:18px; margin:0 0 6px;}
+  .intro{color:var(--muted); font-size:13px; margin:0 0 16px;}
+  .panel{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin-bottom:14px;}
+  .panel > h2{font-size:14px; margin:0 0 10px; color:var(--accent);}
+  .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:10px 12px;}
+  .field{margin-bottom:2px;}
+  .field label{display:block; font-size:12px; color:var(--muted); margin-bottom:3px;}
+  .field.req label::after{content:" *"; color:var(--danger);}
+  input[type=text],input[type=date],input[type=tel],input[type=email]{
+    width:100%; padding:10px; border:1px solid var(--border); border-radius:7px; background:#fff;
+    font:inherit; color:var(--text); min-height:42px;}
+  .field.invalid input{border-color:var(--danger); background:#fff4f2;}
+  .field.uncertain input{border-color:var(--warn-border); background:var(--warn);}
+  .nights{display:inline-block; margin-top:8px; font-size:13px; font-weight:700; color:var(--accent2);}
+  .guest{border:1px dashed var(--border); border-radius:9px; padding:12px; margin-bottom:12px; background:#fafbfc;}
+  .guest-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;}
+  .guest-label{font-weight:700; color:var(--accent); font-size:13.5px;}
+  .link-btn{background:none; border:none; color:var(--danger); font-size:12px; padding:4px 6px; text-decoration:underline;}
+  .check{display:flex; gap:8px; align-items:flex-start; font-size:13px; margin:2px 0 8px;}
+  .check input{margin-top:4px;}
+  button{font:inherit; cursor:pointer;}
+  .btn-scan{width:100%; padding:14px; border:none; border-radius:9px; background:var(--accent2); color:#fff; font-size:15px; font-weight:700;}
+  .btn-scan:disabled{background:#9fb0c8; cursor:wait;}
+  .btn-secondary{padding:10px 14px; border:1px solid var(--border); background:#eef0f3; border-radius:8px; font-weight:600; font-size:13px;}
+  .tip{font-size:11.5px; color:var(--muted); margin:6px 0 0;}
+  .scan-status{font-size:13px; margin-top:8px;}
+  .scan-status.busy{color:var(--accent2);}
+  .scan-status.ok{color:var(--ok);}
+  .scan-status.warn{color:#8a6500;}
+  .scan-status.err{color:var(--danger);}
+  .scan-status .sub{display:block; margin-top:2px;}
+  .face{display:flex; align-items:center; gap:10px; margin-top:8px; font-size:12.5px; color:var(--ok);}
+  .face img{width:64px; height:80px; object-fit:cover; border-radius:6px; border:1px solid var(--border);}
+  .face.missing{color:var(--muted);}
+  .scan-block{margin-bottom:12px;}
+  .btn-submit{width:100%; padding:15px; border:none; border-radius:9px; background:var(--accent); color:#fff; font-size:16px; font-weight:700;}
+  .btn-submit:disabled{background:#9aa3b5;}
+  .status-msg{margin-top:10px; font-size:13px;}
+  .status-msg.err{color:var(--danger);}
+  .done{text-align:center; padding:40px 16px;}
+  .done .mark{font-size:46px; color:var(--ok);}
+  [hidden]{display:none !important;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="lang-bar" id="langBar">
+    <button type="button" class="lang-btn" data-lang="ja">日本語</button>
+    <button type="button" class="lang-btn" data-lang="en">English</button>
+    <button type="button" class="lang-btn" data-lang="zh-Hans">简体中文</button>
+    <button type="button" class="lang-btn" data-lang="zh-Hant">繁體中文</button>
+    <button type="button" class="lang-btn" data-lang="ko">한국어</button>
+  </div>
+
+  <div class="hotel">
+    <div class="name" id="hotelName"></div>
+    <div class="addr" id="hotelAddr"></div>
+  </div>
+
+  <h1 data-i18n="title"></h1>
+  <p class="intro" data-i18n="intro"></p>
+
+  <form id="form" novalidate>
+    <section class="panel">
+      <h2 data-i18n="stayTitle"></h2>
+      <div class="grid">
+        <div class="field req" data-field="checkin"><label data-i18n="checkin"></label><input type="date" id="checkin"></div>
+        <div class="field req" data-field="checkout"><label data-i18n="checkout"></label><input type="date" id="checkout"></div>
+      </div>
+      <span class="nights" id="nights"></span>
+    </section>
+
+    <section class="panel">
+      <h2 data-i18n="guestsTitle"></h2>
+      <div id="guestList"></div>
+      <button type="button" class="btn-secondary" id="addGuest" data-i18n="addGuest"></button>
+    </section>
+
+    <section class="panel" data-field="consent">
+      <label class="check"><input type="checkbox" id="consent"><span data-i18n="consent"></span></label>
+    </section>
+
+    <button type="submit" class="btn-submit" id="submit" data-i18n="submit"></button>
+    <div class="status-msg" id="formStatus" role="alert"></div>
+  </form>
+
+  <div class="done" id="done" hidden>
+    <div class="mark">✓</div>
+    <h2 data-i18n="doneTitle"></h2>
+    <p data-i18n="doneDesc"></p>
+  </div>
+</div>
+
+<script src="/js/config.js"></script>
+<script src="/js/i18n.js"></script>
+<script src="/js/mrz.js"></script>
+<script src="/js/countries.js"></script>
+<script src="/js/scan.js"></script>
+<script src="/js/app.js"></script>
+</body>
+</html>

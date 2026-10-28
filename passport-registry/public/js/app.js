@@ -106,7 +106,8 @@
       if (DEBUG && state.debugLine) {
         const dbg = document.createElement('code');
         dbg.className = 'sub';
-        dbg.textContent = 'OCR: ' + state.debugLine;
+        dbg.style.whiteSpace = 'pre-wrap';
+        dbg.textContent = 'OCR:\n' + state.debugLine;
         box.appendChild(dbg);
       }
     }
@@ -181,7 +182,7 @@
         g.render();
         return;
       }
-      state.debugLine = mrz.raw ? mrz.raw.line1 : '';
+      state.debugLine = mrz.raw ? (mrz.raw.all || [mrz.raw.line1]).join('\n') : '';
       const f = mrz.fields;
       const bad = (k) => mrz.uncertain.includes(k);
       setField('familyName', f.surname, bad('name'));
@@ -198,7 +199,8 @@
       q('[data-role="scanBlock"]').hidden = false;
       q('[data-role="passportNoWrap"]').hidden = false;
 
-      setStatus(mrz.uncertain.length ? 'warn' : 'ok', 'scanOk', mrz.uncertain.length ? 'scanCheck' : null);
+      // 氏名は検算できないため、黄色の項目が無いときも、見比べるよう毎回案内する
+      setStatus(mrz.uncertain.length ? 'warn' : 'ok', 'scanOk', mrz.uncertain.length ? 'scanCheck' : 'scanNameCheck');
       g.render();
     }
 

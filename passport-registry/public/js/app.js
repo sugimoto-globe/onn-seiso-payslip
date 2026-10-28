@@ -62,7 +62,6 @@
         <button type="button" class="btn-scan" data-role="scanBtn"></button>
         <p class="tip" data-role="tip"></p>
         <div class="scan-status" data-role="status" aria-live="polite"></div>
-        <div class="face" data-role="face" hidden><img alt=""><span></span></div>
       </div>
       <div class="grid">
         ${fieldHtml('familyName', 'text', true)}
@@ -81,9 +80,9 @@
     const input = (key) => q(`[data-f="${key}"]`);
     const wrap = (key) => q(`[data-field="${key}"]`);
 
-    // 画像そのものは保持しない。保持するのは読み取り結果・顔の切り抜き（と、設定で許可した場合の原本コピー）のみ。
+    // 撮影した画像そのものは保持しない。保持するのは読み取り結果と、設定で許可した場合の旅券の写し（圧縮コピー）のみ。
     // autoFilled: 読み取り結果を入力欄に反映済みか / attempted: 撮影を試みたか
-    const state = { isRep, code: '', autoNat: '', face: '', original: '', autoFilled: false, attempted: false, status: null };
+    const state = { isRep, code: '', autoNat: '', original: '', autoFilled: false, attempted: false, status: null };
 
     const g = { el, state };
 
@@ -104,17 +103,6 @@
         box.appendChild(sub);
       }
     }
-    function renderFace() {
-      const box = q('[data-role="face"]');
-      const show = state.autoFilled || !!state.face;
-      box.hidden = !show;
-      if (!show) return;
-      box.classList.toggle('missing', !state.face);
-      const img = box.querySelector('img');
-      img.hidden = !state.face;
-      if (state.face) img.src = state.face;
-      box.querySelector('span').textContent = state.face ? '✓ ' + t('faceOk') : t('faceNg');
-    }
 
     g.render = function () {
       el.querySelectorAll('[data-t]').forEach((n) => { n.textContent = t(n.dataset.t); });
@@ -129,7 +117,6 @@
         if (name) { input('nationality').value = name; state.autoNat = name; }
       }
       renderStatus();
-      renderFace();
     };
 
     /* 日本国籍: 撮影欄・旅券番号を隠す */
@@ -177,7 +164,6 @@
 
     function applyScan(res) {
       state.attempted = true;
-      state.face = res.face || '';
       state.original = res.original || '';
       const mrz = res.mrz;
       const usable = mrz && (mrz.score >= 2 || (mrz.fields.surname && mrz.fields.passportNo));
@@ -255,7 +241,6 @@
         phone: isRep ? input('phone').value.trim() : '',
         email: isRep ? input('email').value.trim() : '',
         autoFilled: state.autoFilled,
-        faceImage: state.face,
         passportImage: state.original,
       };
     };
@@ -349,8 +334,8 @@
       const data = await res.json().catch(() => ({ result: 'success' }));
       if (data.result === 'error') throw new Error(data.message || 'error');
 
-      // 送信済みの顔写真などをメモリから消す
-      guests.forEach((g) => { g.state.face = ''; g.state.original = ''; });
+      // 送信済みの旅券の写しをメモリから消す
+      guests.forEach((g) => { g.state.original = ''; });
       $('guestList').textContent = '';
       $('form').hidden = true;
       $('done').hidden = false;

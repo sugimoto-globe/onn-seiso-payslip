@@ -7,30 +7,39 @@
  *  3. [デプロイ] > [新しいデプロイ] > 種類「ウェブアプリ」
  *       実行するユーザー: 自分 / アクセスできるユーザー: 全員
  *     発行された /exec のURLを、Cloudflare Worker の GAS_WEBAPP_URL に設定する
+ *  4. このファイルを更新したときは、貼り替えて setup を実行し、
+ *     [デプロイ] > [デプロイを管理] > 鉛筆 > バージョン「新しいバージョン」> [デプロイ]（URLは変わらない）
  *
- * 届くのは、ゲストの端末で読み取り済みの「文字情報」「顔写真の切り抜き」と、
- * 旅券の写しとして保存するパスポート画像全体（フォーム側 config.js の keepOriginalPassportImage が true の場合）です。
- * パスポート画像はGoogleドライブに保存し、そのURLを名簿の「旅券画像URL」列に記録します。
- * 顔写真の切り抜きは、名簿の行にサムネイルとして埋め込むだけで、Driveには別途保存しません。
+ * 書き込み先の列は、シート1行目の「見出しの文字」で決めます。
+ * そのため、列の削除・並べ替えは自由にできます（見出しの文字は変えないでください）。
+ *
+ * 届くのは、ゲストの端末で読み取り済みの「文字情報」と、旅券の写しとして保存する
+ * パスポート画像（フォーム側 config.js の keepOriginalPassportImage が true の場合）です。
+ * パスポート画像はGoogleドライブに保存し、そのURLを「旅券画像URL」列に記録します。
  */
 
+const SCRIPT_VERSION = '2026-10-28.3'; // 動いている版の確認用（応答にも含まれる）
 const TIMEZONE = 'Asia/Tokyo';
 const SHEET_NAME = '宿泊者名簿';
 const PASSPORT_FOLDER_NAME = 'パスポート画像（ICHZA KYOTO）';
 const MAX_GUESTS = 20;
 
-// 見出し（この順に1行ずつ書き込む）。
+// 見出し。新しいシートはこの順で作る。
 // 左側に「いつ・誰が・何泊・どこの国籍」が並ぶよう、読む頻度の高い列を先頭に置いている。
 const HEADERS = [
-  'チェックイン', 'チェックアウト', '泊数', '顔写真', '氏名', '国籍', '生年月日', '旅券番号', '区分',
+  'チェックイン', 'チェックアウト', '泊数', '氏名', '国籍', '生年月日', '旅券番号', '区分',
   '住所', '住所（日本語訳）', '電話番号', 'メールアドレス',
   '国籍コード', '国籍（入力原文）', '入力方法', '入力言語', '受付日時', '旅券画像URL',
 ];
-const COL = {};
-HEADERS.forEach((h, i) => { COL[h] = i + 1; });
+// 名簿として欠かせない列。誤って消されていたら、送信を受け付けたときに右端へ戻す。
+// （これ以外の列は、消してあれば書き込まずに飛ばす）
+const ESSENTIAL_HEADERS = ['チェックイン', 'チェックアウト', '氏名', '国籍', '生年月日', '旅券番号', '旅券画像URL'];
+// 以前の版にあった列。setup を実行すると取り除く。
+const LEGACY_HEADERS = ['顔写真', '顔写真URL'];
 
+const DATE_HEADERS = ['チェックイン', 'チェックアウト', '生年月日'];
 const COLUMN_WIDTHS = {
-  'チェックイン': 95, 'チェックアウト': 95, '泊数': 50, '顔写真': 80, '氏名': 170, '国籍': 120,
+  'チェックイン': 95, 'チェックアウト': 95, '泊数': 50, '氏名': 170, '国籍': 120,
   '生年月日': 95, '旅券番号': 110, '区分': 60, '住所': 240, '住所（日本語訳）': 240,
   '電話番号': 120, 'メールアドレス': 180,
   '国籍コード': 70, '国籍（入力原文）': 120, '入力方法': 110, '入力言語': 70, '受付日時': 130,
@@ -49,30 +58,36 @@ function doPost(e) {
     const data = JSON.parse(e.postData.contents);
     const guests = (data.guests || []).slice(0, MAX_GUESTS);
     const sheet = getSheet_();
-    const sourceLang = TRANSLATE_SOURCE_LANG[data.lang] || 'ja';
-    const received = new Date();
-    const checkin = parseDate_(data.checkin);
-    const checkout = parseDate_(data.checkout);
+    ensureHeaders_(sheet, ESSENTIAL_HEADERS);
+    const cols = readColumns_(sheet);
+    const ctx = {
+      cols,
+      checkin: parseDate_(data.checkin),
+      checkout: parseDate_(data.checkout),
+      received: new Date(),
+      lang: data.lang,
+      sourceLang: TRANSLATE_SOURCE_LANG[data.lang] || 'ja',
+    };
 
-    guests.forEach((g) => appendGuest_(sheet, g, { checkin, checkout, received, lang: data.lang, sourceLang }));
-    return json_({ result: 'success', saved: guests.length });
+    guests.forEach((g) => appendGuest_(sheet, g, ctx));
+    return json_({ result: 'success', saved: guests.length, version: SCRIPT_VERSION });
   } catch (err) {
-    return json_({ result: 'error', message: String(err) });
+    return json_({ result: 'error', message: String(err), version: SCRIPT_VERSION });
   } finally {
     lock.releaseLock();
   }
 }
 
 function doGet() {
-  return ContentService.createTextOutput('ICHZA KYOTO 宿泊者名簿 受付スクリプト: OK')
+  return ContentService.createTextOutput('ICHZA KYOTO 宿泊者名簿 受付スクリプト: OK (' + SCRIPT_VERSION + ')')
     .setMimeType(ContentService.MimeType.TEXT);
 }
 
 function appendGuest_(sheet, g, ctx) {
+  const cols = ctx.cols;
   const name = [g.familyName, g.givenName].filter(Boolean).join(' ');
 
   // パスポート画像をDriveに保存してURLを記録する（保存に失敗しても名簿の行は残し、失敗が分かる印を付ける）
-  const faceBlob = toImageBlob_(g.faceImage, `${formatDate_(ctx.checkin)}_${name}_face.jpg`);
   const passportBlob = toImageBlob_(g.passportImage, `${formatDate_(ctx.checkin)}_${name}_passport.jpg`);
   const passportUrl = passportBlob
     ? (saveToDrive_(PASSPORT_FOLDER_NAME, passportBlob) || '（Drive保存に失敗）')
@@ -81,8 +96,9 @@ function appendGuest_(sheet, g, ctx) {
   // 国籍: 端末側で国名を日本語化済みならそれを使い、手入力なら入力言語から日本語へ翻訳する
   const natJa = g.nationalityJa || translateToJa_(g.nationality, ctx.sourceLang);
 
-  const row = new Array(HEADERS.length).fill('');
-  const put = (header, value) => { row[COL[header] - 1] = value; };
+  // 見出しの文字から列を探して書き込む（無い見出しは飛ばす）
+  const row = new Array(sheet.getLastColumn()).fill('');
+  const put = (header, value) => { if (cols[header]) row[cols[header] - 1] = value; };
   put('チェックイン', ctx.checkin);
   put('チェックアウト', ctx.checkout);
   put('氏名', text_(name));
@@ -104,19 +120,13 @@ function appendGuest_(sheet, g, ctx) {
 
   const r = sheet.getLastRow();
   // 泊数は計算式にしておく（後からスタッフが日付を直しても自動で追従する）
-  sheet.getRange(r, COL['泊数'])
-    .setFormulaR1C1(`=IF(AND(RC[${COL['チェックイン'] - COL['泊数']}]<>"",RC[${COL['チェックアウト'] - COL['泊数']}]<>""),RC[${COL['チェックアウト'] - COL['泊数']}]-RC[${COL['チェックイン'] - COL['泊数']}],"")`);
-  sheet.getRange(r, 1, 1, HEADERS.length).setVerticalAlignment('middle');
-  applyRowFormats_(sheet, r);
-
-  if (faceBlob) {
-    sheet.setRowHeight(r, 96);
-    try {
-      sheet.insertImage(faceBlob, COL['顔写真'], r, 4, 3).setWidth(72).setHeight(90);
-    } catch (err) {
-      // サムネイルの埋め込みに失敗しても、名簿の行とパスポート画像のURLは残っている
-    }
+  if (cols['泊数'] && cols['チェックイン'] && cols['チェックアウト']) {
+    const inCol = cols['チェックイン'];
+    const outCol = cols['チェックアウト'];
+    sheet.getRange(r, cols['泊数'])
+      .setFormulaR1C1(`=IF(AND(RC${inCol}<>"",RC${outCol}<>""),RC${outCol}-RC${inCol},"")`);
   }
+  applyFormats_(sheet, cols, r, 1);
 }
 
 /* ---------------- シートの準備 ---------------- */
@@ -127,27 +137,73 @@ function setup() {
   PropertiesService.getScriptProperties().setProperty('SPREADSHEET_ID', ss.getId());
   ss.setSpreadsheetTimeZone(TIMEZONE); // 日付がずれないよう、日本時間に固定
   const sheet = getSheet_();
-  removeFaceUrlColumn_(sheet);
 
-  sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS])
+  const removed = removeLegacyColumns_(sheet);
+  const added = ensureHeaders_(sheet, HEADERS);
+  const cols = readColumns_(sheet);
+  const lastCol = sheet.getLastColumn();
+
+  sheet.getRange(1, 1, 1, lastCol)
     .setFontWeight('bold').setBackground('#2b3a55').setFontColor('#ffffff').setVerticalAlignment('middle');
   sheet.setFrozenRows(1);
-  HEADERS.forEach((h, i) => sheet.setColumnWidth(i + 1, COLUMN_WIDTHS[h]));
-  const rows = Math.max(sheet.getMaxRows() - 1, 1);
-  ['チェックイン', 'チェックアウト', '生年月日'].forEach((h) =>
-    sheet.getRange(2, COL[h], rows, 1).setNumberFormat('yyyy-mm-dd'));
-  sheet.getRange(2, COL['受付日時'], rows, 1).setNumberFormat('yyyy-mm-dd hh:mm');
-  sheet.getRange(2, COL['泊数'], rows, 1).setNumberFormat('0"泊"').setHorizontalAlignment('center');
-  Logger.log('準備完了: ' + ss.getUrl());
+  Object.keys(cols).forEach((h) => { if (COLUMN_WIDTHS[h]) sheet.setColumnWidth(cols[h], COLUMN_WIDTHS[h]); });
+  applyFormats_(sheet, cols, 2, Math.max(sheet.getMaxRows() - 1, 1));
+
+  Logger.log('準備完了 (' + SCRIPT_VERSION + '): ' + ss.getUrl()
+    + (removed.length ? ' / 取り除いた列: ' + removed.join('、') : '')
+    + (added.length ? ' / 右端に追加した列: ' + added.join('、') : ''));
 }
 
-// 以前の版にあった「顔写真URL」列を取り除く（入力済みの行も一緒に左へ詰まる）。
-// 列が無ければ何もしないので、何度実行しても安全。
-function removeFaceUrlColumn_(sheet) {
-  const lastCol = sheet.getLastColumn();
-  if (lastCol === 0) return;
-  const i = sheet.getRange(1, 1, 1, lastCol).getValues()[0].indexOf('顔写真URL');
-  if (i >= 0) sheet.deleteColumn(i + 1);
+// 1行目の見出し → 列番号（1始まり）
+function readColumns_(sheet) {
+  const cols = {};
+  const last = sheet.getLastColumn();
+  if (last === 0) return cols;
+  sheet.getRange(1, 1, 1, last).getValues()[0].forEach((h, i) => {
+    const key = String(h).trim();
+    if (key) cols[key] = i + 1;
+  });
+  return cols;
+}
+
+// 足りない見出しを右端に追加する。追加した見出しの一覧を返す。
+function ensureHeaders_(sheet, names) {
+  const cols = readColumns_(sheet);
+  const missing = names.filter((h) => !cols[h]);
+  if (missing.length) {
+    sheet.getRange(1, Math.max(sheet.getLastColumn(), 0) + 1, 1, missing.length).setValues([missing]);
+  }
+  return missing;
+}
+
+// 以前の版にあった列（顔写真・顔写真URL）を取り除く。列を消すと番号が詰まるので、見つかるたびに探し直す。
+// 顔写真のサムネイル画像と、それ用に広げた行の高さも元に戻す。列が無ければ何もしない。
+function removeLegacyColumns_(sheet) {
+  const removed = [];
+  for (let guard = 0; guard < LEGACY_HEADERS.length; guard++) {
+    const cols = readColumns_(sheet);
+    const name = LEGACY_HEADERS.find((h) => cols[h]);
+    if (!name) break;
+    sheet.deleteColumn(cols[name]);
+    removed.push(name);
+  }
+  if (removed.length) {
+    sheet.getImages().forEach((img) => img.remove());
+    const rows = sheet.getLastRow() - 1;
+    if (rows > 0) sheet.setRowHeights(2, rows, 21);
+  }
+  return removed;
+}
+
+// 日付・泊数などの表示形式（見出しの文字で列を探す）
+function applyFormats_(sheet, cols, firstRow, numRows) {
+  DATE_HEADERS.forEach((h) => {
+    if (cols[h]) sheet.getRange(firstRow, cols[h], numRows, 1).setNumberFormat('yyyy-mm-dd');
+  });
+  if (cols['受付日時']) sheet.getRange(firstRow, cols['受付日時'], numRows, 1).setNumberFormat('yyyy-mm-dd hh:mm');
+  if (cols['泊数']) {
+    sheet.getRange(firstRow, cols['泊数'], numRows, 1).setNumberFormat('0"泊"').setHorizontalAlignment('center');
+  }
 }
 
 function getSpreadsheet_() {
@@ -165,12 +221,6 @@ function getSheet_() {
     sheet.setFrozenRows(1);
   }
   return sheet;
-}
-
-function applyRowFormats_(sheet, r) {
-  ['チェックイン', 'チェックアウト', '生年月日'].forEach((h) => sheet.getRange(r, COL[h]).setNumberFormat('yyyy-mm-dd'));
-  sheet.getRange(r, COL['受付日時']).setNumberFormat('yyyy-mm-dd hh:mm');
-  sheet.getRange(r, COL['泊数']).setNumberFormat('0"泊"').setHorizontalAlignment('center');
 }
 
 /* ---------------- 部品 ---------------- */

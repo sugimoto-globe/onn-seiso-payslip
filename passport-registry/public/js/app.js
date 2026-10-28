@@ -70,7 +70,6 @@
         ${fieldHtml('birth', 'date', true)}
         ${fieldHtml('nationality', 'text', true)}
         <div data-role="passportNoWrap">${fieldHtml('passportNo', 'text', true)}</div>
-        ${fieldHtml('occupation', 'text', true)}
       </div>
       ${isRep ? `<div class="grid" style="margin-top:8px">
         ${fieldHtml('address', 'text', true)}
@@ -226,7 +225,7 @@
     // 入力チェック。問題のある項目に invalid を付け、最初の1つを返す
     g.validate = function () {
       let first = null;
-      const need = ['familyName', 'givenName', 'birth', 'nationality', 'occupation'];
+      const need = ['familyName', 'givenName', 'birth', 'nationality'];
       if (!jp.checked) need.push('passportNo');
       if (isRep) need.push('address', 'phone');
       need.forEach((k) => {
@@ -252,7 +251,6 @@
         nationalityJa: unchanged ? countryName(state.code, 'ja') || '' : '',
         nationalityCode: unchanged ? state.code : '',
         passportNo: jp.checked ? '' : input('passportNo').value.trim(),
-        occupation: input('occupation').value.trim(),
         address: repAddress,
         phone: isRep ? input('phone').value.trim() : '',
         email: isRep ? input('email').value.trim() : '',

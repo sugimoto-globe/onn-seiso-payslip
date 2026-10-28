@@ -1,8 +1,7 @@
 /**
  * パスポート写真の読み取り（すべてゲストの端末内で完結する）。
- *   1. 下部の MRZ（2行の英数字）を OCR（Tesseract.js）で読み、mrz.js で解析・検算
- *   2. 顔写真の位置を検出（face-api の Tiny Face Detector）して切り抜く
- * 撮影した画像はこのファイルの中だけで扱う。呼び出し側に返すのは「解析結果」「顔の切り抜き」と、
+ * 下部の MRZ（2行の英数字）を OCR（Tesseract.js）で読み、mrz.js で解析・検算する。
+ * 撮影した画像はこのファイルの中だけで扱う。呼び出し側に返すのは「解析結果」と、
  * 設定（keepOriginal）で許可した場合のみ、旅券の写しとして保存するための圧縮コピーだけ。
  */
 (function (root) {
@@ -19,9 +18,6 @@
     { top: 0.0, rot: 90, width: 2400 },
     { top: 0.0, rot: 270, width: 2400 },
   ];
-
-  const FACE_OUT_W = 240;
-  const FACE_OUT_H = 300; // 縦長 4:5
 
   const loaded = {};
   function loadScript(src) {
@@ -64,22 +60,9 @@
     return ocrPromise;
   }
 
-  let facePromise = null;
-  function getFaceApi() {
-    if (!facePromise) {
-      facePromise = (async () => {
-        await loadScript(VENDOR + 'face/face-api.js');
-        await root.faceapi.nets.tinyFaceDetector.loadFromUri(VENDOR + 'face');
-        return root.faceapi;
-      })().catch((e) => { facePromise = null; throw e; });
-    }
-    return facePromise;
-  }
-
   /** 撮影ボタンが押された時点（カメラが開いている間）に先読みしておく */
   function warmup() {
     getOcr().catch(() => {});
-    getFaceApi().catch(() => {});
   }
 
   /* ---------- 画像の扱い ---------- */
@@ -154,7 +137,7 @@
 
   function release(canvas) { canvas.width = canvas.height = 0; }
 
-  /* ---------- 1. MRZ の読み取り ---------- */
+  /* ---------- MRZ の読み取り ---------- */
   async function readMrz(bitmap, onStage, opts) {
     const worker = await getOcr();
     let best = null;
@@ -179,47 +162,6 @@
     return { mrz: best, rot: bestRot };
   }
 
-  /* ---------- 2. 顔写真の切り抜き ---------- */
-  async function cropFace(bitmap, rot) {
-    const faceapi = await getFaceApi();
-    const detectCanvas = render(bitmap, { rot, width: 1100 });
-    const detectW = detectCanvas.width;
-    let found;
-    try {
-      const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 608, scoreThreshold: 0.3 });
-      found = (await faceapi.detectAllFaces(detectCanvas, options)).map((d) => ({ box: d.box, score: d.score }));
-    } finally {
-      release(detectCanvas);
-    }
-    if (!found.length) return null;
-
-    // 確度が十分な候補の中で最も大きい顔を採用する（パスポートには薄く小さい透かし写真もある。
-    // 確度の低い巨大な誤検出は除外する）。確度の高い候補が無ければ最高スコアを使う。
-    const confident = found.filter((f) => f.score >= 0.5);
-    const face = (confident.length
-      ? confident.reduce((a, b) => (b.box.width * b.box.height > a.box.width * a.box.height ? b : a))
-      : found.reduce((a, b) => (b.score > a.score ? b : a))).box;
-
-    // 切り抜きは高解像度の画像から行う（検出時の縮小率で座標を戻す）
-    const full = render(bitmap, { rot, width: 2400 });
-    const k = full.width / detectW;
-    const cx = (face.x + face.width / 2) * k;
-    const cy = (face.y + face.height / 2) * k + face.height * k * 0.08;
-    const cropH = face.height * k * 1.75;
-    const cropW = cropH * (FACE_OUT_W / FACE_OUT_H);
-    const x = Math.max(0, Math.min(full.width - cropW, cx - cropW / 2));
-    const y = Math.max(0, Math.min(full.height - cropH, cy - cropH / 2));
-
-    const out = document.createElement('canvas');
-    out.width = FACE_OUT_W;
-    out.height = FACE_OUT_H;
-    out.getContext('2d').drawImage(full, x, y, cropW, cropH, 0, 0, FACE_OUT_W, FACE_OUT_H);
-    release(full);
-    const dataUrl = out.toDataURL('image/jpeg', 0.85);
-    release(out);
-    return dataUrl;
-  }
-
   /** 旅券の写しとして保存する圧縮コピー（読み取りで分かった向きに直し、文字が読める解像度を保つ） */
   function compressOriginal(bitmap, rot) {
     const canvas = render(bitmap, { rot, width: 2000 });
@@ -231,12 +173,12 @@
   /**
    * file: カメラで撮影した画像ファイル
    * options: { keepOriginal: boolean, onStage(stage, i, n) }
-   * 戻り値: { mrz, face, original, error }
+   * 戻り値: { mrz, original, error }
    */
   async function scan(file, options) {
     const opts = options || {};
     const onStage = opts.onStage || function () {};
-    const result = { mrz: null, face: null, original: null, error: null };
+    const result = { mrz: null, original: null, error: null };
     let bitmap = null;
     try {
       onStage('loading');
@@ -249,13 +191,6 @@
         rot = r.rot;
       } catch (e) {
         result.error = 'ocr';
-      }
-
-      onStage('face');
-      try {
-        result.face = await cropFace(bitmap, rot);
-      } catch (e) {
-        result.face = null;
       }
 
       if (opts.keepOriginal) result.original = compressOriginal(bitmap, rot);

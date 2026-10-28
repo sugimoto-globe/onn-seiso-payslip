@@ -8,14 +8,14 @@
  *       実行するユーザー: 自分 / アクセスできるユーザー: 全員
  *     発行された /exec のURLを、Cloudflare Worker の GAS_WEBAPP_URL に設定する
  *
- * このスクリプトに届くのは、ゲストの端末で読み取り済みの「文字情報」と「顔写真の切り抜き」だけです。
- * パスポートの元画像は届かず、保存もされません
- * （フォーム側の keepOriginalPassportImage を true にした場合のみ、圧縮した原本を別フォルダに保存）。
+ * 届くのは、ゲストの端末で読み取り済みの「文字情報」「顔写真の切り抜き」と、
+ * 旅券の写しとして保存するパスポート画像全体（フォーム側 config.js の keepOriginalPassportImage が true の場合）です。
+ * パスポート画像はGoogleドライブに保存し、そのURLを名簿の「旅券画像URL」列に記録します。
+ * 顔写真の切り抜きは、名簿の行にサムネイルとして埋め込むだけで、Driveには別途保存しません。
  */
 
 const TIMEZONE = 'Asia/Tokyo';
 const SHEET_NAME = '宿泊者名簿';
-const FACE_FOLDER_NAME = '顔写真（ICHZA KYOTO）';
 const PASSPORT_FOLDER_NAME = 'パスポート画像（ICHZA KYOTO）';
 const MAX_GUESTS = 20;
 
@@ -24,7 +24,7 @@ const MAX_GUESTS = 20;
 const HEADERS = [
   'チェックイン', 'チェックアウト', '泊数', '顔写真', '氏名', '国籍', '生年月日', '旅券番号', '区分',
   '住所', '住所（日本語訳）', '電話番号', 'メールアドレス',
-  '国籍コード', '国籍（入力原文）', '入力方法', '入力言語', '受付日時', '顔写真URL', '旅券画像URL',
+  '国籍コード', '国籍（入力原文）', '入力方法', '入力言語', '受付日時', '旅券画像URL',
 ];
 const COL = {};
 HEADERS.forEach((h, i) => { COL[h] = i + 1; });
@@ -34,7 +34,7 @@ const COLUMN_WIDTHS = {
   '生年月日': 95, '旅券番号': 110, '区分': 60, '住所': 240, '住所（日本語訳）': 240,
   '電話番号': 120, 'メールアドレス': 180,
   '国籍コード': 70, '国籍（入力原文）': 120, '入力方法': 110, '入力言語': 70, '受付日時': 130,
-  '顔写真URL': 120, '旅券画像URL': 120,
+  '旅券画像URL': 200,
 };
 
 // フォームの言語コード → LanguageApp.translate() の言語コード
@@ -71,11 +71,12 @@ function doGet() {
 function appendGuest_(sheet, g, ctx) {
   const name = [g.familyName, g.givenName].filter(Boolean).join(' ');
 
-  // 顔写真・原本画像をDriveに保存（失敗しても名簿の行は残す）
+  // パスポート画像をDriveに保存してURLを記録する（保存に失敗しても名簿の行は残し、失敗が分かる印を付ける）
   const faceBlob = toImageBlob_(g.faceImage, `${formatDate_(ctx.checkin)}_${name}_face.jpg`);
-  const faceUrl = faceBlob ? saveToDrive_(FACE_FOLDER_NAME, faceBlob) : '';
   const passportBlob = toImageBlob_(g.passportImage, `${formatDate_(ctx.checkin)}_${name}_passport.jpg`);
-  const passportUrl = passportBlob ? saveToDrive_(PASSPORT_FOLDER_NAME, passportBlob) : '';
+  const passportUrl = passportBlob
+    ? (saveToDrive_(PASSPORT_FOLDER_NAME, passportBlob) || '（Drive保存に失敗）')
+    : '';
 
   // 国籍: 端末側で国名を日本語化済みならそれを使い、手入力なら入力言語から日本語へ翻訳する
   const natJa = g.nationalityJa || translateToJa_(g.nationality, ctx.sourceLang);
@@ -98,7 +99,6 @@ function appendGuest_(sheet, g, ctx) {
   put('入力方法', g.autoFilled ? 'パスポート読み取り' : '手入力');
   put('入力言語', ctx.lang || '');
   put('受付日時', ctx.received);
-  put('顔写真URL', faceUrl);
   put('旅券画像URL', passportUrl);
   sheet.appendRow(row);
 
@@ -114,7 +114,7 @@ function appendGuest_(sheet, g, ctx) {
     try {
       sheet.insertImage(faceBlob, COL['顔写真'], r, 4, 3).setWidth(72).setHeight(90);
     } catch (err) {
-      // 埋め込みに失敗しても、Driveに保存した顔写真のURLは行に残っている
+      // サムネイルの埋め込みに失敗しても、名簿の行とパスポート画像のURLは残っている
     }
   }
 }
@@ -127,6 +127,7 @@ function setup() {
   PropertiesService.getScriptProperties().setProperty('SPREADSHEET_ID', ss.getId());
   ss.setSpreadsheetTimeZone(TIMEZONE); // 日付がずれないよう、日本時間に固定
   const sheet = getSheet_();
+  removeFaceUrlColumn_(sheet);
 
   sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS])
     .setFontWeight('bold').setBackground('#2b3a55').setFontColor('#ffffff').setVerticalAlignment('middle');
@@ -138,6 +139,15 @@ function setup() {
   sheet.getRange(2, COL['受付日時'], rows, 1).setNumberFormat('yyyy-mm-dd hh:mm');
   sheet.getRange(2, COL['泊数'], rows, 1).setNumberFormat('0"泊"').setHorizontalAlignment('center');
   Logger.log('準備完了: ' + ss.getUrl());
+}
+
+// 以前の版にあった「顔写真URL」列を取り除く（入力済みの行も一緒に左へ詰まる）。
+// 列が無ければ何もしないので、何度実行しても安全。
+function removeFaceUrlColumn_(sheet) {
+  const lastCol = sheet.getLastColumn();
+  if (lastCol === 0) return;
+  const i = sheet.getRange(1, 1, 1, lastCol).getValues()[0].indexOf('顔写真URL');
+  if (i >= 0) sheet.deleteColumn(i + 1);
 }
 
 function getSpreadsheet_() {

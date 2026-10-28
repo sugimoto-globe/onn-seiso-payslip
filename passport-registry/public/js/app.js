@@ -4,6 +4,7 @@
   const SUBMIT_ENDPOINT = '/api/submit';
   const CFG = window.APP_CONFIG;
   const $ = (id) => document.getElementById(id);
+  const DEBUG = new URLSearchParams(location.search).has('debug'); // 読み取り結果（氏名行）を画面に出す調整用
 
   /* ---------------- 言語 ---------------- */
   function detectLang() {
@@ -82,7 +83,7 @@
 
     // 撮影した画像そのものは保持しない。保持するのは読み取り結果と、設定で許可した場合の旅券の写し（圧縮コピー）のみ。
     // autoFilled: 読み取り結果を入力欄に反映済みか / attempted: 撮影を試みたか
-    const state = { isRep, code: '', autoNat: '', original: '', autoFilled: false, attempted: false, status: null };
+    const state = { isRep, code: '', autoNat: '', original: '', autoFilled: false, attempted: false, status: null, debugLine: '' };
 
     const g = { el, state };
 
@@ -101,6 +102,12 @@
         sub.className = 'sub';
         sub.textContent = t(subKey);
         box.appendChild(sub);
+      }
+      if (DEBUG && state.debugLine) {
+        const dbg = document.createElement('code');
+        dbg.className = 'sub';
+        dbg.textContent = 'OCR: ' + state.debugLine;
+        box.appendChild(dbg);
       }
     }
 
@@ -174,6 +181,7 @@
         g.render();
         return;
       }
+      state.debugLine = mrz.raw ? mrz.raw.line1 : '';
       const f = mrz.fields;
       const bad = (k) => mrz.uncertain.includes(k);
       setField('familyName', f.surname, bad('name'));

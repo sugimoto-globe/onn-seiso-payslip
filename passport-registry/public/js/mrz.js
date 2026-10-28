@@ -72,13 +72,48 @@
     return `${year}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
   }
 
-  // OCRで詰め文字 '<' が K/C/L などに化けることがあるため、氏名欄の末尾に残った
-  // 「同じ文字の4回以上の繰り返し」だけを詰め文字として取り除く
-  // （本物の '<' を先に除いてから判定する。MICHAEL のような語尾を削らないため）。
+  // OCRで詰め文字 '<' が K/C/L などに化けることがあるため、氏名欄の末尾に残った詰め文字の読み違いを取り除く。
+  //   - 同じ文字の4回以上の繰り返し（MARIAKKKKK）
+  //   - 末尾の「'<' のあとに続く、K/C/L/S/X/E だけの1文字、または5文字以上の塊」（<<L、<<LLLLKL など）
+  // 本物の '<' を先に除いてから判定するので、MICHAEL のような語尾（E・L）は削らない。
   function cleanNamesField(s) {
-    const body = s.replace(/<+$/, '');
-    const junk = body.replace(/([KCLSXE])\1{3,}$/, '');
-    return junk;
+    let body = s.replace(/<+$/, '').replace(/([KCLSXE])\1{3,}$/, '');
+    for (let i = 0; i < 8; i++) {
+      const next = body.replace(/<+(?:[KCLSXE]{5,}|[KCLSXE])$/, '').replace(/<+$/, '');
+      if (next === body) break;
+      body = next;
+    }
+    return body;
+  }
+
+  // 氏名欄の単語を取り出す。末尾に残った「詰め文字が化けただけの単語」（LLLLLLKL など）は取り除く。
+  function toWords(s) {
+    const w = toAlpha(s).split('<').filter(Boolean);
+    while (w.length > 1 && /^[KCLSXE]{5,}$/.test(w[w.length - 1])) w.pop();
+    return w;
+  }
+
+  // 氏名欄（姓<<名）を姓と名に分ける。区切りの '<<' が正しく読めていないときは補正を試み、
+  // 補正した（または名が空の）場合は repaired を立てて、画面で「要確認」にできるようにする。
+  function splitNames(body) {
+    let sepAt = body.indexOf('<<');
+    let repaired = false;
+    if (sepAt < 0) {
+      // 区切りの2つ目の '<' が K/C/L などに化けた場合（SUGIMOTO<KTAKUMI → SUGIMOTO<<TAKUMI）
+      const m = body.search(/<[KCLSXE](?=[A-Z])/);
+      if (m >= 0) {
+        body = body.slice(0, m) + '<<' + body.slice(m + 2);
+        sepAt = m;
+        repaired = true;
+      }
+    }
+    if (sepAt >= 0) {
+      return { surname: toWords(body.slice(0, sepAt)).join(' '), givenNames: toWords(body.slice(sepAt + 2)).join(' '), repaired };
+    }
+    const w = toWords(body);
+    // 区切りが読めておらず2語だけなら、「姓 名」とみなす（'<<' の片方が欠けた場合）
+    if (w.length === 2) return { surname: w[0], givenNames: w[1], repaired: true };
+    return { surname: w.join(' '), givenNames: '', repaired: false };
   }
 
   /**
@@ -92,16 +127,7 @@
     const l1 = line1.padEnd(LINE_LEN, '<').slice(0, LINE_LEN);
     const l2 = line2.padEnd(LINE_LEN, '<').slice(0, LINE_LEN);
 
-    const namesRaw = cleanNamesField(l1.slice(5));
-    const sepAt = namesRaw.indexOf('<<');
-    const surnameRaw = sepAt >= 0 ? namesRaw.slice(0, sepAt) : namesRaw;
-    const givenRaw = sepAt >= 0 ? namesRaw.slice(sepAt + 2) : '';
-    // 末尾に残った「詰め文字が化けただけの単語」（LLLLLLKL など）は取り除く
-    const words = (s) => {
-      const w = toAlpha(s).split('<').filter(Boolean);
-      while (w.length > 1 && /^[KCLSXE]{5,}$/.test(w[w.length - 1])) w.pop();
-      return w.join(' ');
-    };
+    const names = splitNames(cleanNamesField(l1.slice(5)));
 
     // 2行目: 旅券番号(0-8) 検算(9) 国籍(10-12) 生年月日(13-18) 検算(19)
     //        性別(20) 有効期限(21-26) 検算(27) 任意(28-41) 検算(42) 全体検算(43)
@@ -127,8 +153,8 @@
     const fields = {
       documentCode: l1.slice(0, 2).replace(/</g, ''),
       issuingCountry: toAlpha(l1.slice(2, 5)),
-      surname: words(surnameRaw),
-      givenNames: words(givenRaw),
+      surname: names.surname,
+      givenNames: names.givenNames,
       passportNo: pn.value.replace(/</g, ''),
       nationality,
       birth: formatDate(birthStr, 'birth', now),
@@ -140,10 +166,10 @@
     if (pn.status !== 'ok') uncertain.push('passportNo'); // 補正した場合も要確認
     if (!checks.birth || !fields.birth) uncertain.push('birth');
     if (!/^[A-Z]{3}$/.test(nationality)) uncertain.push('nationality');
-    if (!fields.surname) uncertain.push('name');
+    if (!fields.surname || !fields.givenNames || names.repaired) uncertain.push('name'); // 名が空・区切りを補正した場合も要確認
 
     const score = Object.values(checks).filter(Boolean).length;
-    return { fields, checks, score, uncertain };
+    return { fields, checks, score, uncertain, raw: { line1 } }; // raw: 調整用（1行目＝氏名のみ。旅券番号を含む2行目は返さない）
   }
 
   // OCR の生テキストから MRZ らしい行を拾い、44文字に整形して候補ペアを作る
@@ -156,7 +182,7 @@
     const pairs = [];
     for (let i = 0; i + 1 < lines.length; i++) {
       if (lines[i][0] !== 'P' || lines[i + 1].length < 36) continue;
-      pairs.push({ line1: lines[i].slice(0, LINE_LEN), line2: normalizeLine2(lines[i + 1]) });
+      pairs.push({ line1: lines[i], line2: normalizeLine2(lines[i + 1]) });
     }
     return pairs;
   }

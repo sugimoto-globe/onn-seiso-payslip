@@ -77,6 +77,57 @@ test('詰め文字が K/L の混在に化けて別の単語になっても取り
   assert.equal(r.fields.givenNames, 'JOHN MICHAEL');
 });
 
+test('姓名の区切り「<<」の2つ目が K に化けても（SUGIMOTO<KTAKUMI）、姓・名に分けて要確認にする', () => {
+  const l1 = 'P<JPNSUGIMOTO<KTAKUMI<<<<<<<<<<<<<<<<<<<<<<<'.padEnd(44, '<');
+  const r = MRZ.parseTD3(l1, L2, NOW);
+  assert.equal(r.fields.surname, 'SUGIMOTO');
+  assert.equal(r.fields.givenNames, 'TAKUMI');
+  assert.ok(r.uncertain.includes('name'));
+});
+
+test('詰め文字の途中に読み違いが1文字混ざっても（<<<<L<<<）、名として拾わない', () => {
+  const clean = MRZ.parseTD3('P<JPNSUGIMOTO<<TAKUMI<<<<<K<<<L<<<<<<<<<<<<<<'.slice(0, 44), L2, NOW);
+  assert.equal(clean.fields.surname, 'SUGIMOTO');
+  assert.equal(clean.fields.givenNames, 'TAKUMI');
+  assert.ok(!clean.uncertain.includes('name'));
+  const broken = MRZ.parseTD3('P<JPNSUGIMOTO<KTAKUMI<<<<<L<<<<<<<<<<<<<<<<<'.slice(0, 44), L2, NOW);
+  assert.equal(broken.fields.surname, 'SUGIMOTO');
+  assert.equal(broken.fields.givenNames, 'TAKUMI');
+  assert.ok(broken.uncertain.includes('name'));
+});
+
+test('区切りの片方が欠けて2語だけに見える場合（SUGIMOTO<TAKUMI）は姓・名とみなし、要確認にする', () => {
+  const r = MRZ.parseTD3('P<JPNSUGIMOTO<TAKUMI<<<<<<<<<<<<<<<<<<<<<<<<<<', L2, NOW);
+  assert.equal(r.fields.surname, 'SUGIMOTO');
+  assert.equal(r.fields.givenNames, 'TAKUMI');
+  assert.ok(r.uncertain.includes('name'));
+});
+
+test('区切りが正しく読めているときは、そのまま姓・名にし、要確認にしない（K で始まる名も壊さない）', () => {
+  for (const [line, sur, given] of [
+    ['P<JPNSUGIMOTO<<TAKUMI', 'SUGIMOTO', 'TAKUMI'],
+    ['P<JPNKOBAYASHI<<KENJI', 'KOBAYASHI', 'KENJI'],
+    ['P<JPNSATO<<KAORI<KEI', 'SATO', 'KAORI KEI'],
+  ]) {
+    const r = MRZ.parseTD3(line.padEnd(44, '<'), L2, NOW);
+    assert.equal(r.fields.surname, sur);
+    assert.equal(r.fields.givenNames, given);
+    assert.ok(!r.uncertain.includes('name'), line);
+  }
+});
+
+test('区切りが読めず3語以上で判断できないときは、姓にまとめて名を空にし、要確認にする', () => {
+  const r = MRZ.parseTD3('P<D<<VAN<DER<BERG'.replace('D<<', 'NLD') + '<'.repeat(30), L2, NOW);
+  assert.equal(r.fields.givenNames, '');
+  assert.ok(r.uncertain.includes('name'));
+});
+
+test('調整用に、1行目（氏名）の読み取り結果だけを返す（旅券番号を含む2行目は返さない）', () => {
+  const r = MRZ.parseTD3(L1, L2, NOW);
+  assert.equal(r.raw.line1, L1);
+  assert.ok(!JSON.stringify(r.raw).includes('L898902C'));
+});
+
 test('OCRテキスト全体から MRZ 行を拾う（余計な行・空白・2行目の長さ違いに耐える）', () => {
   const text = [
     'PASSPORT / PASAPORTE',

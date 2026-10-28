@@ -156,7 +156,9 @@
       }
       if (opts.onText) opts.onText(text); // 開発・調整用
       const parsed = root.MRZ.parseText(text, new Date());
-      if (parsed && (!best || parsed.score > best.score)) { best = parsed; bestRot = a.rot; }
+      const better = parsed && (!best || parsed.score > best.score
+        || (parsed.score === best.score && parsed.uncertain.length < best.uncertain.length));
+      if (better) { best = parsed; bestRot = a.rot; }
       if (best && best.score >= 3 && best.uncertain.length === 0) break;
     }
     return { mrz: best, rot: bestRot };

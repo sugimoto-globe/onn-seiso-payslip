@@ -35,9 +35,9 @@ Cloudflare Worker（/api/submit） → Google Apps Script → スプレッドシ
 
 ### 2. Cloudflare Workers
 1. Cloudflare → Workers & Pages → Create → Import a repository → このリポジトリを選択。
-2. **Root directory を `passport-registry`**、Project name を `ichiza-passport-registry`、Build command は空欄、Deploy command は `npx wrangler deploy`。
+2. **Root directory を `passport-registry`**、Project name を `ichza-passport-registry`（`wrangler.jsonc` の `name` と同じにする）、Build command は空欄、Deploy command は `npx wrangler deploy`。
 3. デプロイ後、Settings → Variables and Secrets に `GAS_WEBAPP_URL`（Secret）として手順1-4のURLを登録。
-4. Settings → Domains & Routes で公開するドメインを追加（例: `registry.ichiza-kyoto.example`）。
+4. Settings → Domains & Routes で公開するドメインを追加（例: `registry.ichza-kyoto.example`）。
 5. Cloudflare は `main` ブランチを監視するため、このディレクトリが `main` に入るまで公開されません。
 
 ### 3. 動作確認

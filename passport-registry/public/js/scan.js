@@ -13,6 +13,7 @@
   // 試行順: 下部だけ → 下半分 → 全体 → 90°/270°回転した全体（パスポートを横向きに撮った場合）
   const ATTEMPTS = [
     { top: 0.62, rot: 0, width: 1800 },
+    { top: 0.62, rot: 0, width: 2800 }, // 同じ範囲を大きめに（読み違いが起きる箇所を変えて、多数決に使う）
     { top: 0.45, rot: 0, width: 2200 },
     { top: 0.0, rot: 0, width: 2400 },
     { top: 0.0, rot: 90, width: 2400 },
@@ -138,14 +139,16 @@
   function release(canvas) { canvas.width = canvas.height = 0; }
 
   /* ---------- MRZ の読み取り ---------- */
+  // 切り抜き・大きさを変えて複数回読み、結果をまとめる。氏名は検算できないため、
+  // 2回の読み取りで氏名が一致するまで続けて、多数決で採用する（mrz.js の combine）。
   async function readMrz(bitmap, onStage, opts) {
     const worker = await getOcr();
-    let best = null;
-    let bestRot = 0;
+    const parses = [];
+    let combined = null;
     for (let i = 0; i < ATTEMPTS.length; i++) {
       const a = ATTEMPTS[i];
       // 回転しての再試行は、ここまでで何も読めていないときだけ
-      if (a.rot !== 0 && best && best.score >= 2) break;
+      if (a.rot !== 0 && combined && combined.mrz.score >= 2) break;
       onStage('reading', i + 1, ATTEMPTS.length);
       const canvas = enhance(render(bitmap, a));
       let text = '';
@@ -156,12 +159,15 @@
       }
       if (opts.onText) opts.onText(text); // 開発・調整用
       const parsed = root.MRZ.parseText(text, new Date());
-      const better = parsed && (!best || parsed.score > best.score
-        || (parsed.score === best.score && parsed.uncertain.length < best.uncertain.length));
-      if (better) { best = parsed; bestRot = a.rot; }
-      if (best && best.score >= 3 && best.uncertain.length === 0) break;
+      if (parsed) {
+        parsed.rot = a.rot; // この向きで読めた（保存する写しを正しい向きにするため）
+        parses.push(parsed);
+        combined = root.MRZ.combine(parses);
+      }
+      // 数字が検算で確認でき、氏名も2回の読み取りで一致したら終了
+      if (combined && combined.mrz.score >= 3 && combined.agreed && !combined.mrz.uncertain.length) break;
     }
-    return { mrz: best, rot: bestRot };
+    return { mrz: combined ? combined.mrz : null, rot: combined ? combined.mrz.rot : 0 };
   }
 
   /** 旅券の写しとして保存する圧縮コピー（読み取りで分かった向きに直し、文字が読める解像度を保つ） */

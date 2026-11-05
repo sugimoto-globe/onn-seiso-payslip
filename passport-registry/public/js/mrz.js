@@ -74,12 +74,13 @@
 
   // OCRで詰め文字 '<' が K/C/L などに化けることがあるため、氏名欄の末尾に残った詰め文字の読み違いを取り除く。
   //   - 同じ文字の4回以上の繰り返し（MARIAKKKKK）
-  //   - 末尾の「'<' のあとに続く、K/C/L/S/X/E だけの1文字、または5文字以上の塊」（<<L、<<LLLLKL など）
+  //   - 末尾の「'<' のあとに続く塊」のうち、K/C/L/S/X だけの1〜4文字（<<CC、<<L、<<KL など。母音を含まないので
+  //     実在の名前とは混ざらない）、K/C/L/S/X/E だけの5文字以上、または E 1文字
   // 本物の '<' を先に除いてから判定するので、MICHAEL のような語尾（E・L）は削らない。
   function cleanNamesField(s) {
     let body = s.replace(/<+$/, '').replace(/([KCLSXE])\1{3,}$/, '');
     for (let i = 0; i < 8; i++) {
-      const next = body.replace(/<+(?:[KCLSXE]{5,}|[KCLSXE])$/, '').replace(/<+$/, '');
+      const next = body.replace(/<+(?:[KCLSXE]{5,}|[KCLSX]{1,4}|E)$/, '').replace(/<+$/, '');
       if (next === body) break;
       body = next;
     }
@@ -207,5 +208,45 @@
     return best;
   }
 
-  return { parseTD3, parseText, findCandidates, checkDigit };
+  /**
+   * 同じパスポートを複数回（切り抜きや大きさを変えて）読み取った結果をまとめる。
+   *  - 旅券番号・生年月日などの数字: 検算が最もよく合った読み取りを採用
+   *  - 氏名: 検算ができないので、複数回の読み取りで最も多く一致したものを採用
+   * 戻り値: { mrz, agreed }  agreed = 氏名が2回以上の読み取りで一致したか
+   */
+  function combine(parses) {
+    const usable = (parses || []).filter(Boolean);
+    if (!usable.length) return null;
+    const best = usable.slice().sort((a, b) => b.score - a.score || a.uncertain.length - b.uncertain.length)[0];
+
+    const groups = new Map();
+    usable.filter((p) => p.score >= 2).forEach((p) => { // 数字が読めている＝MRZを正しく捉えた読み取りだけ数える
+      const key = p.fields.surname + '|' + p.fields.givenNames;
+      const g = groups.get(key) || { count: 0, clean: false, p };
+      g.count++;
+      if (!p.uncertain.includes('name')) g.clean = true;
+      groups.set(key, g);
+    });
+    let chosen = null;
+    groups.forEach((g) => {
+      if (!chosen || g.count > chosen.count || (g.count === chosen.count && g.clean && !chosen.clean)) chosen = g;
+    });
+    if (!chosen) chosen = { count: 1, clean: !best.uncertain.includes('name'), p: best };
+
+    const agreed = chosen.count >= 2;
+    const uncertain = best.uncertain.filter((k) => k !== 'name');
+    // 補正（区切りの復元など）を要した氏名は、複数回一致しても推測なので要確認にする。補正なしで読めた氏名は印を付けない
+    if (!chosen.clean) uncertain.push('name');
+    return {
+      agreed,
+      mrz: {
+        ...best,
+        fields: { ...best.fields, surname: chosen.p.fields.surname, givenNames: chosen.p.fields.givenNames },
+        uncertain,
+        raw: { line1: best.raw.line1, all: usable.map((p) => p.raw.line1) },
+      },
+    };
+  }
+
+  return { parseTD3, parseText, findCandidates, checkDigit, combine };
 });
